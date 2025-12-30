@@ -33,6 +33,10 @@ DESCRIPTION (after 3 line breaks):
 - Sentences about different topics should be spaced out by 2 line breaks
 - Maximum 7 sentences total
 
+IMPORTANT: Do NOT use any markdown formatting in your output. No asterisks (*) for bold/italics, no hashtags (#) for headers, no underscores (_), no dashes (-) or bullets for lists. This message will be sent via SMS/text and email, so use only plain text. Write in complete sentences with proper punctuation.
+
+Do not be overly verbose. Be concise and casual with the language so it can be read quickly byt he average reader, without much additional thought.
+
 Format your response exactly as follows (no markers, just the content):
 [your headline here]
 
