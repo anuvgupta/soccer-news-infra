@@ -1,0 +1,26 @@
+{
+    "name": "soccer-news-infra",
+    "version": "1.0.0",
+    "description": "CDK stack for soccer news infrastructure",
+    "main": "lib/index.js",
+    "scripts": {
+        "build": "tsc",
+        "watch": "tsc -w",
+        "cdk": "cdk",
+        "deploy": "cdk deploy",
+        "synth": "cdk synth"
+    },
+    "keywords": [],
+    "author": "",
+    "license": "ISC",
+    "devDependencies": {
+        "@types/node": "^20.0.0",
+        "typescript": "~5.3.0",
+        "aws-cdk": "^2.100.0"
+    },
+    "dependencies": {
+        "aws-cdk-lib": "^2.100.0",
+        "constructs": "^10.0.0",
+        "source-map-support": "^0.5.21"
+    }
+}
