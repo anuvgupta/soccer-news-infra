@@ -112,19 +112,6 @@ def handler(event, context):
         
     except Exception as e:
         print(f"Error: {str(e)}")
-        error_message = f"Error processing soccer news: {str(e)}"
-        
-        # Try to send error notification to SNS if possible
-        try:
-            sns_topic_arn = os.environ.get('SNS_TOPIC_ARN')
-            if sns_topic_arn:
-                sns_client.publish(
-                    TopicArn=sns_topic_arn,
-                    Message=error_message,
-                    Subject="Soccer News Error"
-                )
-        except:
-            pass
-        
+        # Errors are logged to CloudWatch, no need to notify subscribers
         raise e
 
