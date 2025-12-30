@@ -1,9 +1,6 @@
 {
     "stackNamePrefix": "soccer-news",
     "awsAccountId": "738123590383",
-    "phoneNumbers": [
-        "+14087849195"
-    ],
     "tags": {
         "Environment": "Production",
         "Project": "SoccerNews"
