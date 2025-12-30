@@ -26,7 +26,7 @@ HEADLINE (first part):
 - Should be brief enough to fit in a notification preview
 
 DESCRIPTION (after 3 line breaks):
-- Longer description covering all the highlights of the day
+- Longer description covering all the highlights of the day so far, and upcoming games
 - Include the longer form of what's covered in the headline
 - Include other lower priority items not in the headline
 - Split into sentences
