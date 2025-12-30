@@ -82,6 +82,12 @@ def handler(event, context):
             headline = lines[0].strip()
             description = lines[1].strip() if len(lines) > 1 else ""
         
+        # Sanitize headline for SNS Subject (remove newlines, ensure non-empty)
+        # SNS Subject doesn't allow newlines and must not be empty
+        headline = headline.replace('\n', ' ').replace('\r', ' ').strip()
+        if not headline:
+            headline = "Soccer News Update"
+        
         # Use the original response as the message (it's already in the correct format)
         message = notification_content.strip()
         
