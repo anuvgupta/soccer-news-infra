@@ -1,0 +1,8 @@
+{
+    "stackNamePrefix": "soccer-news",
+    "awsAccountId": "738123590383",
+    "tags": {
+        "Environment": "Production",
+        "Project": "SoccerNews"
+    }
+}
