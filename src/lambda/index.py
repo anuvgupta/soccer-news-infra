@@ -34,25 +34,13 @@ def handler(event, context):
     try:
         # Get environment variables
         sns_topic_arn = os.environ.get('SNS_TOPIC_ARN')
-        secret_name = os.environ.get('OPENAI_SECRET_NAME')
-        
         if not sns_topic_arn:
             raise ValueError('SNS_TOPIC_ARN environment variable is not set')
         
-        # Get OpenAI API key from Secrets Manager or environment variable (for local testing)
-        openai_api_key = None
-        if secret_name:
-            try:
-                response = secrets_client.get_secret_value(SecretId=secret_name)
-                openai_api_key = response['SecretString']
-            except Exception as e:
-                print(f"Failed to retrieve secret from Secrets Manager: {str(e)}")
-                raise ValueError(f'Could not retrieve OpenAI API key from Secrets Manager: {str(e)}')
-        else:
-            # Fallback to environment variable for local testing
-            openai_api_key = os.environ.get('OPENAI_API_KEY')
-            if not openai_api_key:
-                raise ValueError('OPENAI_API_KEY environment variable is not set and OPENAI_SECRET_NAME is not configured')
+        # Get OpenAI API key from environment variable
+        openai_api_key = os.environ.get('OPENAI_API_KEY')
+        if not openai_api_key:
+            raise ValueError('OPENAI_API_KEY environment variable is not set')
         
         # Initialize OpenAI client
         client = OpenAI(api_key=openai_api_key)
