@@ -24,8 +24,6 @@ export class SoccerNewsStack extends cdk.Stack {
             topicName: `soccer-news-notifications-${this.account}-${props.stageName}`,
         });
 
-        // Create Lambda function with Python dependencies bundled
-        // Using local bundling to avoid Docker requirement
         const lambdaCode = lambda.Code.fromAsset(
             path.join(__dirname, "../lambda"),
             {
@@ -36,73 +34,6 @@ export class SoccerNewsStack extends cdk.Stack {
                         "-c",
                         "pip install -r requirements.txt -t /asset-output && cp -au . /asset-output",
                     ],
-                    // Try local bundling first, fall back to Docker if available
-                    local: {
-                        tryBundle(outputDir: string): boolean {
-                            try {
-                                const { execSync } = require("child_process");
-                                const lambdaDir = path.join(
-                                    __dirname,
-                                    "../lambda"
-                                );
-
-                                // Check if Python 3.12 is available
-                                try {
-                                    execSync("python3.12 --version", {
-                                        stdio: "ignore",
-                                    });
-                                } catch {
-                                    // Try python3 as fallback
-                                    try {
-                                        execSync("python3 --version", {
-                                            stdio: "ignore",
-                                        });
-                                    } catch {
-                                        console.warn(
-                                            "Python 3 not found, falling back to Docker bundling"
-                                        );
-                                        return false;
-                                    }
-                                }
-
-                                // Install dependencies locally
-                                console.log(
-                                    "Installing Python dependencies locally..."
-                                );
-                                execSync(
-                                    `pip3 install -r ${path.join(
-                                        lambdaDir,
-                                        "requirements.txt"
-                                    )} -t ${outputDir}`,
-                                    {
-                                        stdio: "inherit",
-                                        cwd: lambdaDir,
-                                    }
-                                );
-
-                                // Copy Lambda code files (excluding dependencies which are already installed)
-                                const filesToCopy = [
-                                    "index.py",
-                                    "prompt_template.txt",
-                                ];
-                                for (const file of filesToCopy) {
-                                    const src = path.join(lambdaDir, file);
-                                    const dest = path.join(outputDir, file);
-                                    if (fs.existsSync(src)) {
-                                        fs.copyFileSync(src, dest);
-                                    }
-                                }
-
-                                return true;
-                            } catch (error) {
-                                console.warn(
-                                    "Local bundling failed, will use Docker:",
-                                    error
-                                );
-                                return false;
-                            }
-                        },
-                    },
                 },
             }
         );
