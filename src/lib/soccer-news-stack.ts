@@ -12,6 +12,7 @@ import * as fs from "fs";
 interface SoccerNewsStackProps extends cdk.StackProps {
     stageName: string;
     openaiApiKey: string;
+    phoneNumbers?: string[];
 }
 
 export class SoccerNewsStack extends cdk.Stack {
@@ -52,6 +53,26 @@ export class SoccerNewsStack extends cdk.Stack {
 
         // Grant Lambda permission to publish to SNS
         notificationTopic.grantPublish(soccerNewsLambda);
+
+        // Subscribe phone numbers to SNS topic
+        if (props.phoneNumbers && props.phoneNumbers.length > 0) {
+            props.phoneNumbers.forEach((phoneNumber) => {
+                // Sanitize phone number for use in logical ID (remove + and other special chars)
+                const sanitizedNumber = phoneNumber
+                    .replace(/\+/g, "")
+                    .replace(/[^0-9]/g, "");
+
+                new sns.Subscription(
+                    this,
+                    `SmsSubscription-${sanitizedNumber}`,
+                    {
+                        topic: notificationTopic,
+                        protocol: sns.SubscriptionProtocol.SMS,
+                        endpoint: phoneNumber,
+                    }
+                );
+            });
+        }
 
         // Create EventBridge rule to trigger Lambda daily at 9am UTC
         const schedule = new events.Rule(this, "SoccerNewsSchedule", {
