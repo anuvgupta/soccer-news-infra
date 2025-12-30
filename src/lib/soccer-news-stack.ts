@@ -32,7 +32,7 @@ export class SoccerNewsStack extends cdk.Stack {
                     command: [
                         "bash",
                         "-c",
-                        "pip install -r requirements.txt -t /asset-output && cp -au . /asset-output",
+                        "pip install -r requirements.txt -t /asset-output --platform manylinux2014_x86_64 --only-binary=:all: --no-cache-dir && cp -au . /asset-output",
                     ],
                 },
             }
