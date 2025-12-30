@@ -17,10 +17,26 @@ def format_prompt(template: str) -> str:
     today = datetime.now()
     yesterday = today - timedelta(days=1)
     
+    # Formatted dates for ESPN URLs (YYYYMMDD)
     current_date = today.strftime('%Y%m%d')
     previous_date = yesterday.strftime('%Y%m%d')
     
-    return template.replace('{current_date}', current_date).replace('{previous_date}', previous_date)
+    # Human-readable dates for context
+    current_date_readable = today.strftime('%B %d, %Y')  # e.g., "December 30, 2025"
+    previous_date_readable = yesterday.strftime('%B %d, %Y')  # e.g., "December 29, 2025"
+    
+    # Include full timestamp with timezone for accurate time-based filtering
+    current_timestamp = today.strftime('%Y-%m-%d %H:%M:%S %Z')
+    if not current_timestamp.endswith(' UTC'):
+        # Lambda runs in UTC, make it explicit
+        current_timestamp = today.strftime('%Y-%m-%d %H:%M:%S UTC')
+    
+    return (template
+            .replace('{current_date}', current_date)
+            .replace('{previous_date}', previous_date)
+            .replace('{current_date_readable}', current_date_readable)
+            .replace('{previous_date_readable}', previous_date_readable)
+            .replace('{current_timestamp}', current_timestamp))
 
 def handler(event, context):
     """
