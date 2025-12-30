@@ -48,20 +48,18 @@ cdk deploy
 
 ### Setting OpenAI API Key
 
-You have two options:
+The Lambda function is configured to retrieve the OpenAI API key from AWS Secrets Manager by default.
 
-**Option 1: Environment Variable (for testing)**
-Set the `OPENAI_API_KEY` environment variable in the Lambda function configuration after deployment.
-
-**Option 2: AWS Secrets Manager (recommended for production)**
-1. Create a secret in AWS Secrets Manager:
+**Create the secret before deploying (or after, but before the first run):**
 ```bash
 aws secretsmanager create-secret \
   --name soccer-news/openai-api-key \
   --secret-string "your-api-key-here"
 ```
 
-2. Update the Lambda function code to retrieve the secret from Secrets Manager instead of environment variables.
+The Lambda function has been granted permission to read this secret automatically.
+
+**Note:** For local testing, you can set the `OPENAI_API_KEY` environment variable, and the Lambda will use it if the secret name is not configured. However, in the deployed environment, Secrets Manager is the recommended approach.
 
 ### SNS Topic Subscription
 

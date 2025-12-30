@@ -18,6 +18,15 @@ export class SoccerNewsStack extends cdk.Stack {
             topicName: "soccer-news-notifications",
         });
 
+        // Create or reference the secret for OpenAI API key
+        // If the secret doesn't exist, it will need to be created manually:
+        // aws secretsmanager create-secret --name soccer-news/openai-api-key --secret-string "your-api-key"
+        const openaiApiKeySecret = secretsmanager.Secret.fromSecretNameV2(
+            this,
+            "OpenAIApiKeySecret",
+            "soccer-news/openai-api-key"
+        );
+
         // Create Lambda function with Python dependencies bundled
         const soccerNewsLambda = new lambda.Function(this, "SoccerNewsLambda", {
             runtime: lambda.Runtime.PYTHON_3_12,
@@ -36,10 +45,12 @@ export class SoccerNewsStack extends cdk.Stack {
             memorySize: 512,
             environment: {
                 SNS_TOPIC_ARN: notificationTopic.topicArn,
-                // OPENAI_API_KEY should be set via AWS Secrets Manager or environment variable
-                // For now, we'll expect it to be set as an environment variable during deployment
+                OPENAI_SECRET_NAME: openaiApiKeySecret.secretName,
             },
         });
+
+        // Grant Lambda permission to read the secret
+        openaiApiKeySecret.grantRead(soccerNewsLambda);
 
         // Grant Lambda permission to publish to SNS
         notificationTopic.grantPublish(soccerNewsLambda);
@@ -67,7 +78,7 @@ export class SoccerNewsStack extends cdk.Stack {
 
         // Output instructions
         new cdk.CfnOutput(this, "SetupInstructions", {
-            value: "Set OPENAI_API_KEY environment variable in Lambda function configuration or use AWS Secrets Manager",
+            value: `Create the secret 'soccer-news/openai-api-key' in AWS Secrets Manager with your OpenAI API key. Run: aws secretsmanager create-secret --name soccer-news/openai-api-key --secret-string "your-api-key"`,
             description: "Instructions for setting up OpenAI API key",
         });
     }
