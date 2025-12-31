@@ -1,62 +1,40 @@
-Search the web for the latest soccer news and format it as a text notification.
+CRITICAL: Your response will be sent as SMS and email. DO NOT USE ANY MARKDOWN OR SPECIAL FORMATTING.
+Do not use: # headers, * asterisks, _ underscores, - dashes for bullets, [links], or ANY special characters.
+Write ONLY in plain text sentences with proper punctuation.
 
 CURRENT TIME: {current_timestamp}
 TODAY: {current_date_readable}
 YESTERDAY: {previous_date_readable}
 
-Focus on: EPL, MLS, La Liga, Champions League, World Cup, Copa America.
+Search the web for latest soccer news focusing on:
+- EPL, MLS, La Liga, Champions League, World Cup, Copa America
 
-ESPN schedules:
+Use these ESPN schedules:
 - Yesterday: https://www.espn.com/soccer/schedule/_/date/{previous_date}
 - Today: https://www.espn.com/soccer/schedule/_/date/{current_date}
 
-Find:
-1. Match results from yesterday and today (only if already finished based on current time)
-2. Upcoming matches that haven't started yet
+WHAT TO INCLUDE:
+1. Match RESULTS from yesterday ({previous_date_readable})
+2. Match RESULTS from today ({current_date_readable}) that have already finished (check current time above)
+3. Upcoming matches that have NOT started yet (based on current time)
 
-OUTPUT FORMAT - Follow this EXACTLY:
+IMPORTANT: If a match was scheduled for 2:30 PM ET and the current time is 6:00 PM ET, that match is FINISHED. Report the RESULT, not the schedule.
 
-Line 1: A single short sentence (max 100 characters) summarizing the top 1-2 highlights
-Line 2: Empty
-Line 3: Empty  
-Line 4: Empty
-Line 5+: Detailed description (max 6 sentences). Separate different topics with blank lines.
+YOUR OUTPUT MUST FOLLOW THIS EXACT STRUCTURE:
 
-RULES:
-- NO markdown (no *, #, _, -, bullets, links)
-- NO special formatting whatsoever
-- Plain text only for SMS/email
-- Be concise and casual
-- Use complete sentences with proper punctuation
+First line: One short sentence (under 100 chars) with top highlights
+Second line: Completely blank
+Third line: Completely blank
+Fourth line: Completely blank
+Remaining lines: 3-6 sentences with details. Put blank line between different topics.
 
-EXAMPLE OUTPUT:
-
-```
+CORRECT EXAMPLE:
 Arsenal beats Chelsea 3-1, Liverpool draws with City 2-2.
 
 
-Arsenal dominated Chelsea with a 3-1 victory at Stamford Bridge. Liverpool and Manchester City played to an exciting 2-2 draw at Anfield.
+Arsenal dominated Chelsea with a 3-1 victory at Stamford Bridge with goals from Saka, Martinelli and Odegaard. Liverpool and Manchester City played to an exciting 2-2 draw at Anfield.
 
-Upcoming: Manchester United hosts Tottenham tomorrow at 3pm ET. Barcelona faces Real Madrid on Sunday at 10am ET in El Clasico.
-```
-
+Upcoming today: Manchester United hosts Tottenham at 3pm ET. Barcelona faces Real Madrid on Sunday at 10am ET in El Clasico.
 
 
-BAD EXAMPLE - DO NOT DO THIS:
-
-```
-Arsenal defeats Aston Villa 4-1; Manchester United draws 1-1 with Wolves.
-
-
-## EPL Schedule
-- Newcastle United (NEW) @ Burnley FC (BUR) on Tuesday, Dec 30, 2025 at 11:30 AM PST. Final score: NEW 3 - BUR 1
-- AFC Bournemouth (BOU) @ Chelsea FC (CFC) on Tuesday, Dec 30, 2025 at 11:30 AM PST. Final score: BOU 2 - CFC 2
-- Everton FC (EVE) @ Nottingham Forest (NFO) on Tuesday, Dec 30, 2025 at 11:30 AM PST. Final score: EVE 2 - NFO 0
-- Brighton & Hove Albion (BRI) @ West Ham United (WHU) on Tuesday, Dec 30, 2025 at 11:30 AM PST. Final score: BRI 2 - WHU 2
-- Aston Villa (AVL) @ Arsenal FC (ARS) on Tuesday, Dec 30, 2025 at 12:15 PM PST. Final score: AVL 1 - ARS 4
-- Wolverhampton Wanderers (WOL) @ Manchester United (MUN) on Tuesday, Dec 30, 2025 at 12:15 PM PST. Final score: WOL 1 - MUN 1
-
-In the Africa Cup of Nations, DR Congo defeated Botswana 3-0. ([globalsportsarchive.com](https://globalsportsarchive.com/match/soccer/2025-12-30/botswana-vs-dr-congo/3625230/?utm_source=openai))
-
-No matches are scheduled for today.
-```
+REMEMBER: Plain text sentences only. NO markdown symbols (#, *, -, _, []) anywhere in your response.
