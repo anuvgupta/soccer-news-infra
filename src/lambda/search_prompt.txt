@@ -1,0 +1,52 @@
+CURRENT TIME: {current_timestamp}
+TODAY: {current_date_readable}
+YESTERDAY: {previous_date_readable}
+
+Your task is to search the web and gather comprehensive information about recent soccer matches and upcoming games. Focus on accuracy and completeness.
+
+Search for latest soccer news focusing on:
+- EPL (English Premier League)
+- MLS (Major League Soccer)
+- La Liga
+- Champions League
+- World Cup
+- Copa America
+
+Use these ESPN schedules as starting points:
+- Yesterday's matches: https://www.espn.com/soccer/schedule/_/date/{previous_date}
+- Today's matches: https://www.espn.com/soccer/schedule/_/date/{current_date}
+
+GATHER THE FOLLOWING INFORMATION:
+
+1. COMPLETED MATCHES:
+   - Match RESULTS from yesterday ({previous_date_readable})
+   - Match RESULTS from today ({current_date_readable}) that have ALREADY FINISHED
+   - For each completed match include:
+     * Teams and final score
+     * Names of players who scored goals (goal scorers)
+     * Venue/location
+     * Any significant or interesting events:
+       - Red cards (which player, what minute)
+       - Yellow cards for key players
+       - Goals scored in overtime/stoppage time
+       - Hat tricks (player scoring 3+ goals)
+       - Penalty kicks
+       - Own goals
+       - Comebacks or dramatic finishes
+       - Debut goals or milestones
+       - VAR decisions that changed the game
+       - Injuries to key players
+
+2. UPCOMING MATCHES:
+   - Matches scheduled for today that have NOT started yet (check current time above)
+   - Matches scheduled for tomorrow or soon
+   - For each upcoming match include: teams, scheduled time (with timezone), competition
+
+IMPORTANT TIME-BASED RULES:
+- Current time is: {current_timestamp}
+- If a match was scheduled for 2:30 PM ET and current time is 6:00 PM ET, that match is FINISHED - get the result
+- Only list matches as "upcoming" if they haven't started yet based on current time
+- Be thorough in checking match status and results
+
+Provide your findings in a structured, detailed format with all the information you gathered. Include as much relevant detail as possible - another system will format this for end users.
+

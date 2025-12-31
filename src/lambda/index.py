@@ -6,9 +6,9 @@ from openai import OpenAI
 
 sns_client = boto3.client('sns')
 
-def load_prompt_template():
-    """Load the prompt template from file"""
-    template_path = os.path.join(os.path.dirname(__file__), 'prompt_template.txt')
+def load_prompt_template(template_name):
+    """Load a prompt template from file"""
+    template_path = os.path.join(os.path.dirname(__file__), template_name)
     with open(template_path, 'r') as f:
         return f.read()
 
@@ -41,8 +41,8 @@ def format_prompt(template: str) -> str:
 def handler(event, context):
     """
     Lambda handler that:
-    1. Calls OpenAI API with web search enabled
-    2. Formats the response into notification format
+    1. Calls OpenAI API with web search enabled to gather information (Stage 1)
+    2. Calls OpenAI API with GPT-4 to format the information (Stage 2)
     3. Publishes to SNS topic
     """
     try:
@@ -59,28 +59,50 @@ def handler(event, context):
         # Initialize OpenAI client
         client = OpenAI(api_key=openai_api_key)
         
-        # Load and format prompt
-        prompt_template = load_prompt_template()
-        formatted_prompt = format_prompt(prompt_template)
+        # STAGE 1: Information Gathering with Search Model
+        print("Stage 1: Gathering information with search model...")
+        search_template = load_prompt_template('search_prompt.txt')
+        search_prompt = format_prompt(search_template)
         
-        # Use Chat Completions API with search-enabled model
-        # gpt-4o-search-preview has built-in web search capabilities
-        print(f"Calling OpenAI with web search enabled model (gpt-4o-search-preview)...")
-        
-        response = client.chat.completions.create(
-            model="gpt-4o-search-preview",  # This model has web search built-in
+        search_response = client.chat.completions.create(
+            model="gpt-4o-search-preview",  # Search-enabled model for gathering info
             messages=[
                 {
                     "role": "system",
-                    "content": formatted_prompt
+                    "content": search_prompt
+                }
+            ],
+            max_tokens=2000  # More tokens for comprehensive gathering
+        )
+        
+        gathered_info = search_response.choices[0].message.content
+        print(f"Stage 1 complete: Gathered {len(gathered_info)} characters of information")
+        print(f"Gathered information:\n\n{gathered_info}\n\n")
+        
+        # STAGE 2: Format with Reliable Model
+        print("Stage 2: Formatting information with GPT-4...")
+        format_template = load_prompt_template('format_prompt.txt')
+        format_prompt_text = format_prompt(format_template)
+        
+        format_response = client.chat.completions.create(
+            model="gpt-4o",  # More reliable model for formatting
+            messages=[
+                {
+                    "role": "system",
+                    "content": format_prompt_text
+                },
+                {
+                    "role": "user",
+                    "content": f"Here is the information to format:\n\n{gathered_info}"
                 }
             ],
             max_tokens=1000
         )
         
-        notification_content = response.choices[0].message.content
-        
-        print(f"Received response from OpenAI: {len(notification_content)} characters")
+        notification_content = format_response.choices[0].message.content
+        print(f"Stage 2 complete: Formatted message is {len(notification_content)} characters")
+        print(f"Formatted message:\n\n{notification_content}\n\n")
+
         
         # Extract headline for SNS subject (first line before triple newline)
         # The LLM should output: [headline]\n\n\n[description]
