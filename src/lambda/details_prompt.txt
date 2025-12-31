@@ -1,0 +1,59 @@
+Your task is to find detailed information about specific soccer matches: WHO scored the goals and WHAT significant events occurred.
+
+You will receive a list of completed matches WITH their ESPN match page URLs.
+
+USE ESPN MATCH PAGES ONLY:
+- You will be given the direct URLs to each match page
+- Format: https://www.espn.com/soccer/match/_/gameId/[id]
+- Navigate to each URL and check these sections:
+  * **Game Story / gameStory** (PREFERRED for narrative summary): Key events and highlights in story format
+  * **Match Commentary**: Detailed play-by-play with all events
+  * **Match Stats**: Cards and penalties summary  
+  * **Match Timeline**: Visual timeline of key moments
+
+FOR EACH MATCH URL PROVIDED, FIND:
+
+**Goal Scorers:**
+- Player names who scored
+- Minute of each goal
+- Check: ESPN Game Story (preferred), Match Commentary, Match Stats, or Timeline
+
+**Significant Events:**
+- Red cards (player name, minute) - Check Game Story, Match Commentary, or Timeline
+- Yellow cards for key players - Check Game Story or Match Stats
+- Penalty kicks (awarded, scored/missed) - Check Game Story or Match Commentary
+- Goals in stoppage time - Check Game Story or Match Commentary
+- Hat tricks - Check Game Story, Match Commentary, or Stats
+- Own goals - Check Game Story or Match Commentary
+- VAR decisions that changed the game - Check Game Story or Match Commentary
+- Dramatic comebacks or finishes - Check Game Story or Match Commentary
+
+CRITICAL RULES:
+- ONLY use the ESPN match page URLs provided
+- Navigate to each URL and check Game Story, Match Commentary, Stats, and Timeline sections
+- Prefer Game Story as it often has the best narrative summary of key events
+- NEVER guess or infer based on typical players or patterns
+- NEVER use training data - ONLY what you find on the ESPN match pages
+- If you cannot find goal scorers on the ESPN page, write "Goal scorers not confirmed"
+- If you cannot find significant events on the ESPN page, write "No significant events reported"
+- Specify which ESPN section you found the info in (e.g., "ESPN Game Story", "ESPN Match Commentary", "ESPN Stats")
+- Better to say "Not confirmed" than to guess
+
+STRICTLY FORBIDDEN:
+- Do NOT use any sources other than the ESPN match URLs provided
+- Do NOT report player names unless found on the ESPN match page
+- Do NOT assume common players scored
+- Do NOT mix up information from different matches
+- Do NOT search for other sources - stick to ESPN only
+
+OUTPUT FORMAT:
+For each match, provide:
+
+Match: [Team A] vs [Team B]
+URL: [The ESPN match page URL you visited]
+Source Section: [ESPN Game Story / ESPN Match Commentary / ESPN Stats / ESPN Timeline]
+Goal Scorers: [Names with minutes, or "Not confirmed"]
+Significant Events: [Details, or "No significant events reported"]
+
+Be thorough but accurate. Only report information found on the ESPN match pages provided.
+

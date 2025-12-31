@@ -41,9 +41,10 @@ def format_prompt(template: str) -> str:
 def handler(event, context):
     """
     Lambda handler that:
-    1. Calls OpenAI API with web search enabled to gather information (Stage 1)
-    2. Calls OpenAI API with GPT-4 to format the information (Stage 2)
-    3. Publishes to SNS topic
+    1. Calls OpenAI search to get match results (scores only)
+    2. Calls OpenAI search to get detailed info (goal scorers, significant events)
+    3. Calls OpenAI GPT-4 to format everything into notification
+    4. Publishes to SNS topic
     """
     try:
         # Get environment variables
@@ -59,30 +60,56 @@ def handler(event, context):
         # Initialize OpenAI client
         client = OpenAI(api_key=openai_api_key)
         
-        # STAGE 1: Information Gathering with Search Model
-        print("Stage 1: Gathering information with search model...")
-        search_template = load_prompt_template('search_prompt.txt')
-        search_prompt = format_prompt(search_template)
+        # STAGE 1: Get Match Results (Scores Only)
+        print("Stage 1: Getting match results (scores)...")
+        results_template = load_prompt_template('results_prompt.txt')
+        results_prompt = format_prompt(results_template)
         
-        search_response = client.chat.completions.create(
-            model="gpt-4o-search-preview",  # Search-enabled model for gathering info
+        results_response = client.chat.completions.create(
+            model="gpt-4o-search-preview",  # Search-enabled model
             messages=[
                 {
                     "role": "system",
-                    "content": search_prompt
+                    "content": results_prompt
                 }
             ],
-            max_tokens=4000  # More tokens for comprehensive gathering with player details
+            max_tokens=2000
         )
         
-        gathered_info = search_response.choices[0].message.content
-        print(f"Stage 1 complete: Gathered {len(gathered_info)} characters of information")
-        print(f"Gathered information:\n\n{gathered_info}\n\n")
+        match_results = results_response.choices[0].message.content
+        print(f"Stage 1 complete: Found {len(match_results)} characters of match results")
+        print(f"Match results:\n\n{match_results}\n\n")
         
-        # STAGE 2: Format with Reliable Model
-        print("Stage 2: Formatting information with GPT-4...")
+        # STAGE 2: Get Detailed Information (Goal Scorers & Events)
+        print("Stage 2: Getting detailed info (goal scorers and events)...")
+        details_template = load_prompt_template('details_prompt.txt')
+        details_prompt_text = format_prompt(details_template)
+        
+        details_response = client.chat.completions.create(
+            model="gpt-4o-search-preview",  # Search-enabled model
+            messages=[
+                {
+                    "role": "system",
+                    "content": details_prompt_text
+                },
+                {
+                    "role": "user",
+                    "content": f"Here are the completed matches to get details for:\n\n{match_results}"
+                }
+            ],
+            max_tokens=4000
+        )
+        
+        match_details = details_response.choices[0].message.content
+        print(f"Stage 2 complete: Gathered {len(match_details)} characters of detailed information")
+        print(f"Match details:\n\n{match_details}\n\n")
+        
+        # STAGE 3: Format with Reliable Model
+        print("Stage 3: Formatting information with GPT-4...")
         format_template = load_prompt_template('format_prompt.txt')
         format_prompt_text = format_prompt(format_template)
+        
+        combined_info = f"MATCH RESULTS:\n{match_results}\n\nDETAILED INFORMATION:\n{match_details}"
         
         format_response = client.chat.completions.create(
             model="gpt-4o",  # More reliable model for formatting
@@ -93,14 +120,14 @@ def handler(event, context):
                 },
                 {
                     "role": "user",
-                    "content": f"Here is the information to format:\n\n{gathered_info}"
+                    "content": f"Here is the information to format:\n\n{combined_info}"
                 }
             ],
             max_tokens=1000
         )
         
         notification_content = format_response.choices[0].message.content
-        print(f"Stage 2 complete: Formatted message is {len(notification_content)} characters")
+        print(f"Stage 3 complete: Formatted message is {len(notification_content)} characters")
         print(f"Formatted message:\n\n{notification_content}\n\n")
 
         

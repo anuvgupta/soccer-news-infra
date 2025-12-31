@@ -1,0 +1,63 @@
+CURRENT TIME: {current_timestamp}
+TODAY: {current_date_readable}
+YESTERDAY: {previous_date_readable}
+
+Your task is to find completed and upcoming soccer match results from ESPN. Keep this simple and focused - just get the scores and match URLs.
+
+Focus on these competitions:
+- EPL (English Premier League)
+- MLS (Major League Soccer)
+- La Liga
+- Champions League
+- World Cup
+- Copa America
+
+USE ESPN SCHEDULES:
+- Yesterday's matches: https://www.espn.com/soccer/schedule/_/date/{previous_date}
+- Today's matches: https://www.espn.com/soccer/schedule/_/date/{current_date}
+
+From these schedule pages, navigate to each match to get the ESPN match page URL.
+Match page URLs are in format: https://www.espn.com/soccer/match/_/gameId/[id]
+
+WHAT TO FIND:
+
+1. COMPLETED MATCHES (Results Only):
+   - Matches from yesterday ({previous_date_readable})
+   - Matches from today ({current_date_readable}) that have ALREADY FINISHED (check current time)
+   
+   For each completed match provide:
+   - Team names
+   - Final score
+   - Competition/league
+   - Date
+   - ESPN Match Page URL (IMPORTANT: extract this from the schedule page)
+
+2. UPCOMING MATCHES:
+   - Matches scheduled for today that have NOT started yet
+   - Matches scheduled for tomorrow or soon
+   
+   For each upcoming match provide:
+   - Team names
+   - Scheduled time (with timezone)
+   - Competition/league
+
+TIME-BASED RULES:
+- Current time is: {current_timestamp}
+- If a match was scheduled for 2:30 PM ET and current time is 6:00 PM ET, that match is FINISHED
+- Only list as "upcoming" if the match hasn't started yet
+
+OUTPUT FORMAT:
+List all completed matches with their scores and ESPN URLs, then list upcoming matches.
+Keep it simple - just teams, scores, URLs, and times. No need for goal scorers or events yet.
+
+Example:
+COMPLETED MATCHES:
+- Arsenal 4-1 Aston Villa (EPL, December 30)
+  URL: https://www.espn.com/soccer/match/_/gameId/704329
+- Newcastle 3-1 Burnley (EPL, December 30)
+  URL: https://www.espn.com/soccer/match/_/gameId/704330
+
+UPCOMING MATCHES:
+- Equatorial Guinea vs Algeria (AFCON, 11:00 AM ET, December 31)
+- Sudan vs Burkina Faso (AFCON, 11:00 AM ET, December 31)
+
