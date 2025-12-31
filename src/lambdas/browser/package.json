@@ -1,0 +1,17 @@
+{
+    "name": "soccer-news-lambda-browser",
+    "version": "1.0.0",
+    "description": "Puppeteer Lambda function for headless browsing",
+    "type": "module",
+    "main": "index.mjs",
+    "scripts": {
+        "test": "echo \"Error: no test specified\" && exit 1"
+    },
+    "dependencies": {
+        "@sparticuz/chromium": "^143.0.0",
+        "puppeteer-core": "^24.34.0"
+    },
+    "engines": {
+        "node": ">=20.0.0"
+    }
+}

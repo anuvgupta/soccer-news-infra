@@ -1,8 +1,0 @@
-this app is getting really overloaded and messy. its not going to work. some thoughts: 
-- we cannot download html from espn directly because it requires rendering js, so we need to use gpt with search.
-
-lets redesign:
-- stage 1a: use search gpt model to view the espn schedule page for current day. we want the model to extract teams, game scores, and match url for completed games, and teams & times for upcoming games.
-- stage 1b: use search gpt model to view the espn schedule page for previous day. we want the model to extract teams & game scores, and match url for completed games.
-
-lets just do this for now. dont publish to sns, just print the message out to console/logs.
