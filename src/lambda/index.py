@@ -72,10 +72,6 @@ def handler(event, context):
             messages=[
                 {
                     "role": "system",
-                    "content": "You are a soccer news aggregator. Search the web for the latest soccer news and provide accurate, up-to-date information about recent matches, results, and upcoming games. Focus on EPL, MLS, La Liga, and major competitions."
-                },
-                {
-                    "role": "user",
                     "content": formatted_prompt
                 }
             ],
