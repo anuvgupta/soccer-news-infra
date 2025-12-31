@@ -5,19 +5,6 @@ from openai import OpenAI
 import boto3
 
 
-def get_date_info():
-    """Get current and previous date information for ESPN URLs"""
-    today = datetime.now()
-    yesterday = today - timedelta(days=1)
-    
-    return {
-        'current_date': today.strftime('%Y%m%d'),
-        'previous_date': yesterday.strftime('%Y%m%d'),
-        'current_date_readable': today.strftime('%B %d, %Y'),
-        'previous_date_readable': yesterday.strftime('%B %d, %Y')
-    }
-
-
 def invoke_browser_lambda(url, timeout=60000, delay=5000):
     """
     Invoke the Browser Lambda function to fetch rendered HTML
@@ -77,81 +64,75 @@ def invoke_browser_lambda(url, timeout=60000, delay=5000):
         raise
 
 
-def capture_espn_schedule_html(date_string):
+def extract_schedule_html(html_content, max_chars=50000):
     """
-    Use Browser Lambda to navigate to ESPN schedule page and capture rendered HTML
+    Find 'Soccer Schedule</h1>' and return the next 50,000 characters
     
     Args:
-        date_string: Date in YYYYMMDD format (e.g., '20251229')
+        html_content: Full HTML from the page
+        max_chars: Maximum characters to extract after marker (default: 50000)
     
     Returns:
-        str: Full HTML content of the rendered page
+        str: Truncated HTML content starting after the marker
     """
-    espn_url = f"https://www.espn.com/soccer/schedule/_/date/{date_string}"
+    marker = "Soccer Schedule</h1>"
+    pos = html_content.find(marker)
     
-    print(f"Fetching HTML from {espn_url} via Browser Lambda...")
+    if pos == -1:
+        # Fallback: if marker not found, use beginning
+        print(f"Warning: Marker '{marker}' not found, using first {max_chars} characters")
+        return html_content[:max_chars]
     
-    try:
-        # Invoke Browser Lambda to fetch the HTML
-        html_content = invoke_browser_lambda(
-            url=espn_url,
-            timeout=60000,  # 60 second timeout
-            delay=5000      # 5 second delay after page load
-        )
-        
-        print(f"Successfully captured HTML ({len(html_content)} characters)")
-        
-        return html_content
-        
-    except Exception as e:
-        print(f"Error in capture_espn_schedule_html: {e}")
-        raise
+    # Start AFTER the closing tag
+    start_pos = pos + len(marker)
+    extracted = html_content[start_pos:start_pos + max_chars]
+    
+    print(f"Found marker at position {pos}")
+    print(f"Extracted {len(extracted)} characters starting after marker")
+    
+    return extracted
 
 
-def parse_matches_from_html(client, html_content, date_readable):
+def extract_matches_with_gpt(client, html_content, date_str):
     """
-    Use GPT-4o to parse the ESPN schedule HTML and extract match data
+    Use GPT-4o to extract match data from HTML
     
     Args:
         client: OpenAI client instance
-        html_content: Full HTML from ESPN schedule page
-        date_readable: Human-readable date string
+        html_content: HTML content (already truncated)
+        date_str: Date string in YYYYMMDD format
     
     Returns:
-        dict: Parsed match data with teams, scores, and URLs
+        dict: Match data with structure defined in prompt
     """
-    prompt = f"""You are analyzing an ESPN soccer schedule page for {date_readable}.
+    prompt = f"""Extract all completed soccer matches from this ESPN schedule HTML for {date_str}.
 
-I'm providing you with the full HTML content of the page. Please extract all COMPLETED matches (matches that have finished and show a final score).
+For each completed match (matches that have finished with a final score), extract:
+- home_team: The first team mentioned (home team)
+- away_team: The second team mentioned (away team)
+- winning_team: Which team won (or "Draw" if tied)
+- score: The final score in format "X-Y" (e.g., "3-1")
+- match_url: The ESPN match page URL (format: https://www.espn.com/soccer/match/_/gameId/######)
 
-For each completed match, extract:
-1. Team names (home and away)
-2. Final score
-3. League/Competition name
-4. Match URL (should be in format: https://www.espn.com/soccer/match/_/gameId/######)
-
-Return the data as a JSON array with this structure:
+Return JSON with this exact structure:
 {{
   "matches": [
     {{
-      "home_team": "Team Name",
-      "away_team": "Team Name",
-      "home_score": 3,
-      "away_score": 1,
-      "competition": "English Premier League",
-      "match_url": "https://www.espn.com/soccer/match/_/gameId/######"
+      "home_team": "Team A",
+      "away_team": "Team B", 
+      "winning_team": "Team A",
+      "score": "3-1",
+      "match_url": "https://www.espn.com/soccer/match/_/gameId/123456"
     }}
   ]
 }}
 
-Here is the HTML content:
+HTML content:
 
-{html_content[:50000]}
-
-Note: The HTML has been truncated to the first 50,000 characters to fit token limits. Focus on extracting match data from the available content.
+{html_content}
 """
-
-    print(f"Sending HTML to GPT-4o for parsing...")
+    
+    print(f"Sending {len(html_content)} characters to GPT-4o for parsing...")
     
     response = client.chat.completions.create(
         model="gpt-4o",
@@ -160,59 +141,24 @@ Note: The HTML has been truncated to the first 50,000 characters to fit token li
             "content": prompt
         }],
         response_format={"type": "json_object"},
-        max_tokens=2000
+        max_tokens=4000
     )
     
-    # Parse the JSON response
     result = json.loads(response.choices[0].message.content)
     
-    print(f"GPT-4o successfully parsed {len(result.get('matches', []))} matches")
+    print(f"GPT-4o extracted {len(result.get('matches', []))} matches")
     
     return result
 
 
-def format_matches_output(matches_data, date_readable):
-    """
-    Format the parsed match data into a readable output string
-    
-    Args:
-        matches_data: Dictionary with match data from GPT-4o
-        date_readable: Human-readable date string
-    
-    Returns:
-        str: Formatted output string
-    """
-    matches = matches_data.get('matches', [])
-    
-    if not matches:
-        return f"No completed matches found for {date_readable}"
-    
-    output_lines = [f"COMPLETED MATCHES FOR {date_readable}"]
-    output_lines.append("=" * 60)
-    output_lines.append("")
-    
-    for i, match in enumerate(matches, 1):
-        home_team = match.get('home_team', 'Unknown')
-        away_team = match.get('away_team', 'Unknown')
-        home_score = match.get('home_score', '?')
-        away_score = match.get('away_score', '?')
-        competition = match.get('competition', 'Unknown')
-        match_url = match.get('match_url', 'No URL')
-        
-        output_lines.append(f"{i}. {home_team} {home_score}-{away_score} {away_team}")
-        output_lines.append(f"   Competition: {competition}")
-        output_lines.append(f"   Match URL: {match_url}")
-        output_lines.append("")
-    
-    return "\n".join(output_lines)
-
-
 def handler(event, context):
     """
-    Lambda handler that:
-    1. Stage 1: Use Browser Lambda to capture ESPN schedule page HTML
-    2. Stage 2: Use GPT-4o to parse HTML and extract match data
-    3. Print results to console/logs
+    Lambda handler - simplified flow:
+    1. Get previous day's date
+    2. Build ESPN schedule URL and fetch HTML via Browser Lambda
+    3. Intelligently truncate HTML to relevant section
+    4. Extract match data using GPT-4o
+    5. Print JSON results to console
     """
     try:
         # Get OpenAI API key from environment variable
@@ -223,43 +169,46 @@ def handler(event, context):
         # Initialize OpenAI client
         client = OpenAI(api_key=openai_api_key)
         
-        # Get date information
-        date_info = get_date_info()
-        print(f"Processing results for previous day: {date_info['previous_date_readable']}")
-        print(f"{'='*60}\n")
+        # 1. Get previous day's date
+        yesterday = (datetime.now() - timedelta(days=1)).strftime('%Y%m%d')
+        yesterday_readable = (datetime.now() - timedelta(days=1)).strftime('%B %d, %Y')
         
-        # Stage 1: Capture HTML using Browser Lambda
-        print(f"STAGE 1: CAPTURING HTML WITH BROWSER LAMBDA")
-        print(f"{'='*60}")
-        html_content = capture_espn_schedule_html(date_info['previous_date'])
-        print(f"{'='*60}\n")
+        print(f"Processing soccer matches for: {yesterday_readable}")
+        print("=" * 60)
         
-        # Stage 2: Parse HTML using GPT-4o
-        print(f"STAGE 2: PARSING HTML WITH GPT-4o")
-        print(f"{'='*60}")
-        matches_data = parse_matches_from_html(
-            client, 
-            html_content, 
-            date_info['previous_date_readable']
-        )
-        print(f"{'='*60}\n")
+        # 2. Build URL and fetch HTML via Browser Lambda
+        url = f"https://www.espn.com/soccer/schedule/_/date/{yesterday}"
+        print(f"\nFetching HTML from: {url}")
+        html = invoke_browser_lambda(url)
         
-        # Format and print results
-        output = format_matches_output(matches_data, date_info['previous_date_readable'])
-        print(f"\n{output}\n")
+        # 3. Intelligently truncate HTML to relevant section
+        print("\nTruncating HTML to relevant section...")
+        truncated_html = extract_schedule_html(html)
         
-        # Return success with match count
+        # 4. Extract match data using GPT-4o
+        print("\nExtracting match data with GPT-4o...")
+        result = extract_matches_with_gpt(client, truncated_html, yesterday)
+        
+        # 5. Print JSON results to console
+        print("\n" + "=" * 60)
+        print("MATCH RESULTS (JSON):")
+        print("=" * 60)
+        print(json.dumps(result, indent=2))
+        print("=" * 60)
+        
         return {
             'statusCode': 200,
-            'body': json.dumps({
-                'message': 'Match extraction completed successfully',
-                'date': date_info['previous_date_readable'],
-                'match_count': len(matches_data.get('matches', []))
-            })
+            'body': json.dumps(result)
         }
         
     except Exception as e:
         print(f"Error: {str(e)}")
         import traceback
         traceback.print_exc()
-        raise e
+        
+        return {
+            'statusCode': 500,
+            'body': json.dumps({
+                'error': str(e)
+            })
+        }
