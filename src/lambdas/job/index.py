@@ -5,17 +5,19 @@ from openai import OpenAI
 import boto3
 
 
-def invoke_browser_lambda(url, timeout=60000, delay=5000):
+def invoke_browser_lambda(url, operation=None, keyword=None, timeout=60000, delay=5000):
     """
     Invoke the Browser Lambda function to fetch rendered HTML
     
     Args:
         url: The URL to fetch
+        operation: Operation to perform (e.g., 'find_classes')
+        keyword: Keyword for the operation (e.g., class name to find)
         timeout: Navigation timeout in milliseconds (default: 60000)
         delay: Additional delay after page load in milliseconds (default: 5000)
     
     Returns:
-        str: Full HTML content of the rendered page
+        str: HTML content (full page or extracted based on operation)
     """
     browser_lambda_arn = os.environ.get('BROWSER_LAMBDA_ARN')
     if not browser_lambda_arn:
@@ -29,6 +31,12 @@ def invoke_browser_lambda(url, timeout=60000, delay=5000):
         'timeout': timeout,
         'delay': delay
     }
+    
+    # Add operation and keyword if provided
+    if operation:
+        payload['operation'] = operation
+    if keyword:
+        payload['keyword'] = keyword
     
     print(f"Invoking Browser Lambda for URL: {url}")
     print(f"Payload: {json.dumps(payload)}")
@@ -62,42 +70,6 @@ def invoke_browser_lambda(url, timeout=60000, delay=5000):
     except Exception as e:
         print(f"Error invoking Browser Lambda: {e}")
         raise
-
-
-def extract_schedule_html(html_content, max_chars=50000):
-    """
-    Find 'Soccer Schedule</h1>' and return the next 50,000 characters
-    
-    Args:
-        html_content: Full HTML from the page
-        max_chars: Maximum characters to extract after marker (default: 50000)
-    
-    Returns:
-        str: Truncated HTML content starting after the marker
-    """
-    marker = "Soccer Schedule</h1>"
-    pos = html_content.find(marker)
-    
-    if pos == -1:
-        # Fallback: if marker not found, use beginning
-        print(f"Warning: Marker '{marker}' not found, using first {max_chars} characters")
-        return html_content[:max_chars]
-    
-    # Start AFTER the closing tag
-    start_pos = pos + len(marker)
-    extracted = html_content[start_pos:start_pos + max_chars]
-    
-    print(f"Found marker at position {pos}")
-    print(f"Extracted {len(extracted)} characters starting after marker")
-    
-    # DEBUG: Print the ENTIRE extracted HTML to see what we're actually sending to GPT
-    print("\n" + "=" * 80)
-    print("DEBUG: FULL EXTRACTED HTML CONTENT")
-    print("=" * 80)
-    print(extracted)
-    print("=" * 80 + "\n")
-    
-    return extracted
 
 
 def extract_matches_with_gpt(client, html_content, date_str):
@@ -183,14 +155,26 @@ def handler(event, context):
         print(f"Processing soccer matches for: {yesterday_readable}")
         print("=" * 60)
         
-        # 2. Build URL and fetch HTML via Browser Lambda
+        # 2. Build URL and fetch HTML via Browser Lambda with find_classes operation
         url = f"https://www.espn.com/soccer/schedule/_/date/{yesterday}"
         print(f"\nFetching HTML from: {url}")
-        html = invoke_browser_lambda(url)
+        print(f"Operation: find_classes, Keyword: ScheduleTables")
+        html = invoke_browser_lambda(
+            url=url,
+            operation='find_classes',
+            keyword='ScheduleTables'
+        )
         
-        # 3. Intelligently truncate HTML to relevant section
-        print("\nTruncating HTML to relevant section...")
-        truncated_html = extract_schedule_html(html)
+        # 3. Debug: Print the HTML we received
+        print(f"\nReceived HTML length: {len(html)} characters")
+        print("\n" + "=" * 80)
+        print("DEBUG: HTML CONTENT FROM BROWSER LAMBDA")
+        print("=" * 80)
+        print(html)
+        print("=" * 80 + "\n")
+        
+        # Use the HTML directly (no need to truncate since we already extracted specific classes)
+        truncated_html = html[:50000]  # Still limit to 50K for GPT token limits
         
         # 4. Extract match data using GPT-4o
         print("\nExtracting match data with GPT-4o...")
