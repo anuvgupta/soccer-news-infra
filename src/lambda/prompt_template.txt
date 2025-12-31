@@ -23,17 +23,40 @@ Line 4: Empty
 Line 5+: Detailed description (max 6 sentences). Separate different topics with blank lines.
 
 RULES:
-- NO markdown (no *, #, _, -, bullets)
+- NO markdown (no *, #, _, -, bullets, links)
 - NO special formatting whatsoever
 - Plain text only for SMS/email
 - Be concise and casual
 - Use complete sentences with proper punctuation
 
 EXAMPLE OUTPUT:
+
+```
 Arsenal beats Chelsea 3-1, Liverpool draws with City 2-2.
 
 
 Arsenal dominated Chelsea with a 3-1 victory at Stamford Bridge. Liverpool and Manchester City played to an exciting 2-2 draw at Anfield.
 
 Upcoming: Manchester United hosts Tottenham tomorrow at 3pm ET. Barcelona faces Real Madrid on Sunday at 10am ET in El Clasico.
+```
 
+
+
+BAD EXAMPLE - DO NOT DO THIS:
+
+```
+Arsenal defeats Aston Villa 4-1; Manchester United draws 1-1 with Wolves.
+
+
+## EPL Schedule
+- Newcastle United (NEW) @ Burnley FC (BUR) on Tuesday, Dec 30, 2025 at 11:30 AM PST. Final score: NEW 3 - BUR 1
+- AFC Bournemouth (BOU) @ Chelsea FC (CFC) on Tuesday, Dec 30, 2025 at 11:30 AM PST. Final score: BOU 2 - CFC 2
+- Everton FC (EVE) @ Nottingham Forest (NFO) on Tuesday, Dec 30, 2025 at 11:30 AM PST. Final score: EVE 2 - NFO 0
+- Brighton & Hove Albion (BRI) @ West Ham United (WHU) on Tuesday, Dec 30, 2025 at 11:30 AM PST. Final score: BRI 2 - WHU 2
+- Aston Villa (AVL) @ Arsenal FC (ARS) on Tuesday, Dec 30, 2025 at 12:15 PM PST. Final score: AVL 1 - ARS 4
+- Wolverhampton Wanderers (WOL) @ Manchester United (MUN) on Tuesday, Dec 30, 2025 at 12:15 PM PST. Final score: WOL 1 - MUN 1
+
+In the Africa Cup of Nations, DR Congo defeated Botswana 3-0. ([globalsportsarchive.com](https://globalsportsarchive.com/match/soccer/2025-12-30/botswana-vs-dr-congo/3625230/?utm_source=openai))
+
+No matches are scheduled for today.
+```
