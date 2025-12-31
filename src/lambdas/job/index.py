@@ -90,6 +90,13 @@ def extract_schedule_html(html_content, max_chars=50000):
     print(f"Found marker at position {pos}")
     print(f"Extracted {len(extracted)} characters starting after marker")
     
+    # DEBUG: Print the ENTIRE extracted HTML to see what we're actually sending to GPT
+    print("\n" + "=" * 80)
+    print("DEBUG: FULL EXTRACTED HTML CONTENT")
+    print("=" * 80)
+    print(extracted)
+    print("=" * 80 + "\n")
+    
     return extracted
 
 
