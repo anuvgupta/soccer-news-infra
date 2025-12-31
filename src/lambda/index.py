@@ -17,34 +17,30 @@ def get_date_info():
     }
 
 
-def extract_current_day_schedule(client, date_info):
+def extract_previous_day_matches(client, date_info):
     """
-    Stage 1a: Use search GPT to extract information from ESPN schedule for current day
-    Returns: teams, scores, match URLs for completed games, and teams & times for upcoming games
+    Stage 1a: Get completed match results from previous day (scores only, no URLs yet)
+    Returns: List of completed matches with teams and scores
     """
-    espn_url = f"https://www.espn.com/soccer/schedule/_/date/{date_info['current_date']}"
+    espn_url = f"https://www.espn.com/soccer/schedule/_/date/{date_info['previous_date']}"
     
-    prompt = f"""Visit the ESPN soccer schedule page for {date_info['current_date_readable']} at:
+    prompt = f"""Look at the ESPN soccer schedule page for {date_info['previous_date_readable']}:
 {espn_url}
 
-Extract and provide:
+List all COMPLETED matches (games that have finished and show a final score).
 
-1. COMPLETED MATCHES (games that have finished):
-   For each match, provide:
-   - Team names
-   - Final score
-   - Match URL (full ESPN match page URL with gameId)
-   
-2. UPCOMING MATCHES (games scheduled for today that haven't started yet):
-   For each match, provide:
-   - Team names
-   - Scheduled time (in the timezone shown on ESPN)
+For each completed match, provide ONLY:
+- Team names
+- Final score
+- League/Competition name
 
-Format your response clearly with two sections: "COMPLETED MATCHES" and "UPCOMING MATCHES".
-For completed matches, include the match URL.
+Format as a simple list. Do NOT include URLs yet.
+Example format:
+- Newcastle United 3-1 Burnley FC (EPL)
+- Chelsea 2-2 Bournemouth (EPL)
 """
 
-    print(f"Stage 1a: Extracting current day schedule from {espn_url}...")
+    print(f"Stage 1a: Getting match results from {espn_url}...")
     
     response = client.chat.completions.create(
         model="gpt-4o-search-preview",
@@ -52,33 +48,36 @@ For completed matches, include the match URL.
             "role": "user",
             "content": prompt
         }],
-        max_tokens=2000
+        max_tokens=1500
     )
     
     return response.choices[0].message.content
 
 
-def extract_previous_day_schedule(client, date_info):
+def find_match_urls(client, matches_text, date_info):
     """
-    Stage 1b: Use search GPT to extract information from ESPN schedule for previous day
-    Returns: teams, scores, match URLs for completed games
+    Stage 1b: Find the specific match page URLs for the matches from stage 1a
     """
     espn_url = f"https://www.espn.com/soccer/schedule/_/date/{date_info['previous_date']}"
     
-    prompt = f"""Visit the ESPN soccer schedule page for {date_info['previous_date_readable']} at:
+    prompt = f"""Go to this ESPN soccer schedule page:
 {espn_url}
 
-Extract and provide information for COMPLETED MATCHES only (ignore any upcoming matches):
+I need the match page URLs for these specific matches:
 
-For each completed match, provide:
-- Team names
-- Final score
-- Match URL (full ESPN match page URL with gameId)
+{matches_text}
 
-Format your response clearly.
+For each match listed above, find and click on it to get its specific match page URL.
+The URL should be in the format: https://www.espn.com/soccer/match/_/gameId/######
+
+Provide the results as:
+Match: [Team1 vs Team2]
+URL: [the actual URL with gameId]
+
+Do this for each match in the list.
 """
 
-    print(f"Stage 1b: Extracting previous day schedule from {espn_url}...")
+    print(f"Stage 1b: Finding match URLs...")
     
     response = client.chat.completions.create(
         model="gpt-4o-search-preview",
@@ -95,8 +94,8 @@ Format your response clearly.
 def handler(event, context):
     """
     Simplified Lambda handler that:
-    1. Stage 1a: Extract schedule info for current day (completed + upcoming)
-    2. Stage 1b: Extract schedule info for previous day (completed only)
+    1. Stage 1a: Get completed match results from previous day (teams & scores)
+    2. Stage 1b: Find the specific match URLs for those matches
     3. Print results to console/logs
     """
     try:
@@ -110,33 +109,30 @@ def handler(event, context):
         
         # Get date information
         date_info = get_date_info()
-        print(f"Processing schedule for:")
-        print(f"  Current day: {date_info['current_date_readable']}")
-        print(f"  Previous day: {date_info['previous_date_readable']}")
+        print(f"Processing results for previous day: {date_info['previous_date_readable']}")
         
-        # Stage 1a: Current day schedule
-        current_day_results = extract_current_day_schedule(client, date_info)
+        # Stage 1a: Get match results (scores)
+        matches_results = extract_previous_day_matches(client, date_info)
         print(f"\n{'='*60}")
-        print(f"CURRENT DAY SCHEDULE ({date_info['current_date_readable']})")
+        print(f"STAGE 1A: MATCH RESULTS ({date_info['previous_date_readable']})")
         print(f"{'='*60}")
-        print(current_day_results)
+        print(matches_results)
         print(f"{'='*60}\n")
         
-        # Stage 1b: Previous day schedule
-        previous_day_results = extract_previous_day_schedule(client, date_info)
+        # Stage 1b: Find URLs for those matches
+        match_urls = find_match_urls(client, matches_results, date_info)
         print(f"\n{'='*60}")
-        print(f"PREVIOUS DAY RESULTS ({date_info['previous_date_readable']})")
+        print(f"STAGE 1B: MATCH URLS")
         print(f"{'='*60}")
-        print(previous_day_results)
+        print(match_urls)
         print(f"{'='*60}\n")
         
         # Return success
         return {
             'statusCode': 200,
             'body': json.dumps({
-                'message': 'Schedule extraction completed successfully',
-                'current_day_date': date_info['current_date_readable'],
-                'previous_day_date': date_info['previous_date_readable']
+                'message': 'Match extraction completed successfully',
+                'date': date_info['previous_date_readable']
             })
         }
         
