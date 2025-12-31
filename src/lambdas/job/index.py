@@ -86,19 +86,24 @@ def extract_matches_with_gpt(client, html_content, date_str):
     """
     prompt = f"""Extract all completed soccer matches from this ESPN schedule HTML for {date_str}.
 
-IMPORTANT: ESPN displays matches in "Away @ Home" format where:
-- The AWAY team appears first/on the left (has class="Table__Team away")
-- The HOME team appears second/on the right (has class="Table__Team" without "away")
-- Scores are shown as "Away-Home" (e.g., "1-3" means away team scored 1, home team scored 3)
+IMPORTANT: Look at the HTML class attributes to identify teams:
+- The AWAY team will have class="Table__Team away" (contains the word "away")
+- The HOME team will have class="Table__Team" (does NOT contain "away")
+- Scores are shown as "Away-Home" format
 
-For each completed match (matches that have finished with a final score), extract:
-- away_team: The visiting/away team (appears first, has "away" class)
-- home_team: The host/home team (appears second, no "away" class)
-- winning_team: Which team won (use actual team name, or "Draw" if tied)
-- score: The final score in format "Away-Home" (e.g., "1-3")
+For each completed match (matches that have finished and show "FT" for Full Time), extract:
+- away_team: The team whose HTML has class="Table__Team away"
+- home_team: The team whose HTML has class="Table__Team" (without "away")
+- winning_team: Which team won based on the score (or "Draw" if tied)
+- score: The final score in format "Away-Home" (e.g., "1-3" means away scored 1, home scored 3)
 - match_url: The ESPN match page URL (format: https://www.espn.com/soccer/match/_/gameId/######)
 
-Return JSON with this exact structure  (this is a template):
+Example from HTML:
+<span class="Table__Team away"><a>Burnley</a></span>  ← This is AWAY team
+<a>&nbsp; 1 - 3 &nbsp;</a>  ← Score: Away 1, Home 3
+<span class="Table__Team"><a>Newcastle United</a></span>  ← This is HOME team (no "away" class)
+
+Return JSON with this exact structure (this is a template):
 {{
   "matches": [
     {{
