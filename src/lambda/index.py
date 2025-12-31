@@ -72,7 +72,7 @@ def handler(event, context):
                     "content": search_prompt
                 }
             ],
-            max_tokens=2000  # More tokens for comprehensive gathering
+            max_tokens=4000  # More tokens for comprehensive gathering with player details
         )
         
         gathered_info = search_response.choices[0].message.content
