@@ -89,22 +89,39 @@ def extract_matches_with_gpt(client, html_content, date_str):
 
 For each completed match, the format is: Team1Name, Team1Score - Team2Score, Team2Name
 
+CRITICAL - Understanding the score format and determining the winner:
+- The score format is "X-Y" where X is team1's score and Y is team2's score
+- Example: score "1-3" means team1 scored 1 goal, team2 scored 3 goals → team2 wins (higher score)
+- Example: score "4-1" means team1 scored 4 goals, team2 scored 1 goal → team1 wins (higher score)
+- Example: score "2-2" means team1 scored 2 goals, team2 scored 2 goals → Draw (equal scores)
+- The winner is ALWAYS the team with the HIGHER score
+- If X > Y, then team1 wins
+- If Y > X, then team2 wins  
+- If X = Y, then it's a "Draw"
+
 For each completed match (matches that have finished with a final score), extract:
 - team1: The first team name
 - team2: The second team name
-- winner: Which team won (use actual team name, or "Draw" if tied)
-- score: The final score in format "X-Y" (e.g., "1-3" means first team scored 1, second team scored 3)
+- winner: The team with the higher score (or "Draw" if scores are equal)
+- score: The final score in format "X-Y" where X=team1's score, Y=team2's score
 - match_url: The ESPN match page URL (format: https://www.espn.com/soccer/match/_/gameId/######)
 
 Return JSON with this exact structure:
 {{
   "matches": [
     {{
-      "team1": "Burnley",
-      "team2": "Newcastle United",
-      "winner": "Newcastle United",
-      "score": "1-3",
-      "match_url": "https://www.espn.com/soccer/match/_/gameId/740778"
+      "team1": "Arsenal",
+      "team2": "Aston Villa",
+      "winner": "Arsenal",
+      "score": "4-1",
+      "match_url": "https://www.espn.com/soccer/match/_/gameId/740776"
+    }},
+    {{
+      "team1": "Nottingham Forest",
+      "team2": "Everton",
+      "winner": "Everton",
+      "score": "0-2",
+      "match_url": "https://www.espn.com/soccer/match/_/gameId/740783"
     }}
   ]
 }}
