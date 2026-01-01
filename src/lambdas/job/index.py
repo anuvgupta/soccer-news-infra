@@ -87,41 +87,22 @@ def extract_matches_with_gpt(client, html_content, date_str):
     """
     prompt = f"""Extract all completed soccer matches from this ESPN schedule HTML for {date_str}.
 
-For each completed match, the format is: Team1Name, Team1Score - Team2Score, Team2Name
-
-CRITICAL - Understanding the score format and determining the winner:
-- The score format is "X-Y" where X is team1's score and Y is team2's score
-- Example: score "1-3" means team1 scored 1 goal, team2 scored 3 goals → team2 wins (higher score)
-- Example: score "4-1" means team1 scored 4 goals, team2 scored 1 goal → team1 wins (higher score)
-- Example: score "2-2" means team1 scored 2 goals, team2 scored 2 goals → Draw (equal scores)
-- The winner is ALWAYS the team with the HIGHER score
-- If X > Y, then team1 wins
-- If Y > X, then team2 wins  
-- If X = Y, then it's a "Draw"
-
-For each completed match (matches that have finished with a final score), extract:
-- team1: The first team name
-- team2: The second team name
-- winner: The team with the higher score (or "Draw" if scores are equal)
-- score: The final score in format "X-Y" where X=team1's score, Y=team2's score
+For each completed match, extract the following information:
+- team1: The first team name shown
+- team2: The second team name shown
+- score: The final score in format "X-Y" (e.g., "1-3") where X is team1's score and Y is team2's score
 - match_url: The ESPN match page URL (format: https://www.espn.com/soccer/match/_/gameId/######)
+
+Do NOT determine the winner - just extract the team names, score, and URL exactly as shown.
 
 Return JSON with this exact structure:
 {{
   "matches": [
     {{
-      "team1": "Arsenal",
-      "team2": "Aston Villa",
-      "winner": "Arsenal",
-      "score": "4-1",
-      "match_url": "https://www.espn.com/soccer/match/_/gameId/740776"
-    }},
-    {{
-      "team1": "Nottingham Forest",
-      "team2": "Everton",
-      "winner": "Everton",
-      "score": "0-2",
-      "match_url": "https://www.espn.com/soccer/match/_/gameId/740783"
+      "team1": "Burnley",
+      "team2": "Newcastle United",
+      "score": "1-3",
+      "match_url": "https://www.espn.com/soccer/match/_/gameId/740778"
     }}
   ]
 }}
@@ -145,7 +126,29 @@ HTML content:
     
     result = json.loads(response.choices[0].message.content)
     
-    print(f"GPT-4o extracted {len(result.get('matches', []))} matches")
+    # Calculate the winner for each match based on the score
+    matches = result.get('matches', [])
+    for match in matches:
+        score = match.get('score', '')
+        if '-' in score:
+            try:
+                parts = score.split('-')
+                team1_score = int(parts[0].strip())
+                team2_score = int(parts[1].strip())
+                
+                if team1_score > team2_score:
+                    match['winner'] = match['team1']
+                elif team2_score > team1_score:
+                    match['winner'] = match['team2']
+                else:
+                    match['winner'] = 'Draw'
+            except (ValueError, IndexError):
+                # If we can't parse the score, set winner as unknown
+                match['winner'] = 'Unknown'
+        else:
+            match['winner'] = 'Unknown'
+    
+    print(f"GPT-4o extracted {len(matches)} matches, winners calculated in Python")
     
     return result
 
