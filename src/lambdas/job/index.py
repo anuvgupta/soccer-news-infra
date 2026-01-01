@@ -1,6 +1,7 @@
 import json
 import os
 from datetime import datetime, timedelta
+from zoneinfo import ZoneInfo
 from openai import OpenAI
 import boto3
 
@@ -150,9 +151,13 @@ def handler(event, context):
         # Initialize OpenAI client
         client = OpenAI(api_key=openai_api_key)
         
-        # 1. Get previous day's date
-        yesterday = (datetime.now() - timedelta(days=1)).strftime('%Y%m%d')
-        yesterday_readable = (datetime.now() - timedelta(days=1)).strftime('%B %d, %Y')
+        # 1. Get previous day's date in PST/PDT (Pacific time)
+        pacific_tz = ZoneInfo("America/Los_Angeles")
+        now_pacific = datetime.now(pacific_tz)
+        yesterday_pacific = now_pacific - timedelta(days=1)
+        
+        yesterday = yesterday_pacific.strftime('%Y%m%d')
+        yesterday_readable = yesterday_pacific.strftime('%B %d, %Y')
         
         print(f"Processing soccer matches for: {yesterday_readable}")
         print("=" * 60)
