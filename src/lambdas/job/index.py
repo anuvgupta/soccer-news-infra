@@ -86,30 +86,22 @@ def extract_matches_with_gpt(client, html_content, date_str):
     """
     prompt = f"""Extract all completed soccer matches from this ESPN schedule HTML for {date_str}.
 
-IMPORTANT: Look at the HTML class attributes to identify teams:
-- The AWAY team will have class="Table__Team away" (contains the word "away")
-- The HOME team will have class="Table__Team" (does NOT contain "away")
-- Scores are shown as "Away-Home" format
+For each completed match, the format is: Team1Name, Team1Score - Team2Score, Team2Name
 
-For each completed match (matches that have finished and show "FT" for Full Time), extract:
-- away_team: The team whose HTML has class="Table__Team away"
-- home_team: The team whose HTML has class="Table__Team" (without "away")
-- winning_team: Which team won based on the score (or "Draw" if tied)
-- score: The final score in format "Away-Home" (e.g., "1-3" means away scored 1, home scored 3)
+For each completed match (matches that have finished with a final score), extract:
+- team1: The first team name
+- team2: The second team name
+- winner: Which team won (use actual team name, or "Draw" if tied)
+- score: The final score in format "X-Y" (e.g., "1-3" means first team scored 1, second team scored 3)
 - match_url: The ESPN match page URL (format: https://www.espn.com/soccer/match/_/gameId/######)
 
-Example from HTML:
-<span class="Table__Team away"><a>Burnley</a></span>  ← This is AWAY team
-<a>&nbsp; 1 - 3 &nbsp;</a>  ← Score: Away 1, Home 3
-<span class="Table__Team"><a>Newcastle United</a></span>  ← This is HOME team (no "away" class)
-
-Return JSON with this exact structure (this is a template):
+Return JSON with this exact structure:
 {{
   "matches": [
     {{
-      "away_team": "Burnley",
-      "home_team": "Newcastle United",
-      "winning_team": "Newcastle United",
+      "team1": "Burnley",
+      "team2": "Newcastle United",
+      "winner": "Newcastle United",
       "score": "1-3",
       "match_url": "https://www.espn.com/soccer/match/_/gameId/740778"
     }}
