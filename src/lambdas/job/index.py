@@ -4,6 +4,7 @@ from datetime import datetime, timedelta
 from zoneinfo import ZoneInfo
 from openai import OpenAI
 import boto3
+from concurrent.futures import ThreadPoolExecutor, as_completed
 
 
 def invoke_browser_lambda(url, operation=None, keyword=None, timeout=60000, delay=5000):
@@ -71,6 +72,93 @@ def invoke_browser_lambda(url, operation=None, keyword=None, timeout=60000, dela
     except Exception as e:
         print(f"Error invoking Browser Lambda: {e}")
         raise
+
+
+def fetch_match_report(match_data):
+    """
+    Fetch the match report page for a given match
+    
+    Args:
+        match_data: Match dict containing 'match_url' field
+    
+    Returns:
+        str: HTML content from Story__Body class, or empty string if error
+    """
+    try:
+        match_url = match_data.get('match_url', '')
+        if not match_url:
+            print(f"No match_url found for match: {match_data.get('team1')} vs {match_data.get('team2')}")
+            return ''
+        
+        # Extract match ID from URL
+        # Example: https://www.espn.com/soccer/match/_/gameId/740778 -> 740778
+        match_id = match_url.rstrip('/').split('/')[-1]
+        
+        # Build report URL
+        report_url = f"https://www.espn.com/soccer/report/_/gameId/{match_id}"
+        
+        print(f"Fetching report for {match_data.get('team1')} vs {match_data.get('team2')} from {report_url}")
+        
+        # Call browser lambda to extract Story__Body class
+        html = invoke_browser_lambda(
+            url=report_url,
+            operation='find_classes',
+            keyword='Story__Body'
+        )
+        
+        return html
+        
+    except Exception as e:
+        print(f"Error fetching report for match {match_data.get('team1')} vs {match_data.get('team2')}: {e}")
+        return ''
+
+
+def fetch_reports_in_batches(matches, batch_size=10):
+    """
+    Fetch match reports for all matches in parallel batches
+    
+    Args:
+        matches: List of match dicts
+        batch_size: Number of matches to process in parallel (default: 10)
+    
+    Returns:
+        list: Matches with 'report' field added
+    """
+    if not matches:
+        return matches
+    
+    print(f"\nFetching reports for {len(matches)} matches in batches of {batch_size}...")
+    
+    # Process matches in batches
+    enriched_matches = []
+    
+    for i in range(0, len(matches), batch_size):
+        batch = matches[i:i+batch_size]
+        batch_num = (i // batch_size) + 1
+        total_batches = (len(matches) + batch_size - 1) // batch_size
+        
+        print(f"\nProcessing batch {batch_num}/{total_batches} ({len(batch)} matches)...")
+        
+        # Use ThreadPoolExecutor to fetch reports in parallel
+        with ThreadPoolExecutor(max_workers=batch_size) as executor:
+            # Submit all tasks
+            future_to_match_data = {executor.submit(fetch_match_report, match_data): match_data for match_data in batch}
+            
+            # Collect results as they complete
+            for future in as_completed(future_to_match_data):
+                match_data = future_to_match_data[future]
+                try:
+                    report_html = future.result()
+                    match_data['report'] = report_html
+                    print(f"  ✓ Report fetched for {match_data.get('team1')} vs {match_data.get('team2')} ({len(report_html)} chars)")
+                except Exception as e:
+                    print(f"  ✗ Failed to fetch report for {match_data.get('team1')} vs {match_data.get('team2')}: {e}")
+                    match_data['report'] = ''
+                
+                enriched_matches.append(match_data)
+    
+    print(f"\nCompleted fetching reports for {len(enriched_matches)} matches")
+    return enriched_matches
 
 
 def extract_matches_with_gpt(client, html_content, date_str):
@@ -154,8 +242,8 @@ HTML content:
     
     # Calculate the winner for each match based on the score
     matches = result.get('matches', [])
-    for match in matches:
-        score = match.get('score', '')
+    for match_data in matches:
+        score = match_data.get('score', '')
         if '-' in score:
             try:
                 parts = score.split('-')
@@ -163,16 +251,16 @@ HTML content:
                 team2_score = int(parts[1].strip())
                 
                 if team1_score > team2_score:
-                    match['winner'] = match['team1']
+                    match_data['winner'] = match_data['team1']
                 elif team2_score > team1_score:
-                    match['winner'] = match['team2']
+                    match_data['winner'] = match_data['team2']
                 else:
-                    match['winner'] = 'Draw'
+                    match_data['winner'] = 'Draw'
             except (ValueError, IndexError):
                 # If we can't parse the score, set winner as unknown
-                match['winner'] = 'Unknown'
+                match_data['winner'] = 'Unknown'
         else:
-            match['winner'] = 'Unknown'
+            match_data['winner'] = 'Unknown'
     
     print(f"GPT-4o extracted {len(matches)} matches, winners calculated in Python")
     
@@ -246,7 +334,8 @@ def handler(event, context):
     2. Build ESPN schedule URL and fetch HTML via Browser Lambda
     3. Intelligently truncate HTML to relevant section
     4. Extract match data using GPT-4o
-    5. Print JSON results to console
+    5. Fetch match reports in parallel (batches of 10)
+    6. Print JSON results to console
     
     Event parameters:
         timestamp (optional): Custom date to use. Supports:
@@ -310,7 +399,16 @@ def handler(event, context):
         print("\nExtracting match data with GPT-4o...")
         result = extract_matches_with_gpt(client, truncated_html, yesterday)
         
-        # 5. Print JSON results to console
+        # 5. Fetch match reports for each match
+        matches = result.get('matches', [])
+        if matches:
+            print(f"\nFound {len(matches)} matches, fetching reports...")
+            enriched_matches = fetch_reports_in_batches(matches, batch_size=10)
+            result['matches'] = enriched_matches
+        else:
+            print("\nNo matches found, skipping report fetching")
+        
+        # 6. Print JSON results to console
         print("\n" + "=" * 60)
         print("MATCH RESULTS (JSON):")
         print("=" * 60)
