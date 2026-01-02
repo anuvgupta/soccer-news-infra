@@ -155,14 +155,81 @@ HTML content:
     return result
 
 
+def parse_timestamp(timestamp_input, timezone):
+    """
+    Parse various timestamp formats into a datetime object in the specified timezone
+    
+    Args:
+        timestamp_input: Can be:
+            - YYYYMMDD format string (e.g., "20241231")
+            - ISO format string (e.g., "2024-12-31" or "2024-12-31T00:00:00")
+            - Unix timestamp in seconds (int or string)
+        timezone: ZoneInfo timezone object
+    
+    Returns:
+        datetime: Parsed datetime in the specified timezone
+    """
+    # If it's an integer or numeric string, treat as Unix timestamp
+    if isinstance(timestamp_input, int):
+        return datetime.fromtimestamp(timestamp_input, tz=timezone)
+    
+    timestamp_str = str(timestamp_input).strip()
+    
+    # Try to parse as Unix timestamp (numeric string)
+    try:
+        unix_ts = float(timestamp_str)
+        return datetime.fromtimestamp(unix_ts, tz=timezone)
+    except ValueError:
+        pass
+    
+    # Try to parse as YYYYMMDD format
+    if len(timestamp_str) == 8 and timestamp_str.isdigit():
+        try:
+            dt = datetime.strptime(timestamp_str, '%Y%m%d')
+            return dt.replace(tzinfo=timezone)
+        except ValueError:
+            pass
+    
+    # Try to parse as ISO format (YYYY-MM-DD or YYYY-MM-DDTHH:MM:SS)
+    try:
+        # Handle date only (YYYY-MM-DD)
+        if 'T' not in timestamp_str and len(timestamp_str) == 10:
+            dt = datetime.strptime(timestamp_str, '%Y-%m-%d')
+            return dt.replace(tzinfo=timezone)
+        # Handle datetime with T separator
+        elif 'T' in timestamp_str:
+            # Try with seconds
+            try:
+                dt = datetime.fromisoformat(timestamp_str)
+                # Convert to target timezone if it has tzinfo, otherwise assume it's in target timezone
+                if dt.tzinfo:
+                    return dt.astimezone(timezone)
+                else:
+                    return dt.replace(tzinfo=timezone)
+            except ValueError:
+                pass
+    except ValueError:
+        pass
+    
+    raise ValueError(f"Unable to parse timestamp: {timestamp_input}. "
+                     f"Supported formats: YYYYMMDD (20241231), ISO (2024-12-31), or Unix timestamp (1735689600)")
+
+
 def handler(event, context):
     """
     Lambda handler - simplified flow:
-    1. Get previous day's date
+    1. Get target date (from input or default to previous day)
     2. Build ESPN schedule URL and fetch HTML via Browser Lambda
     3. Intelligently truncate HTML to relevant section
     4. Extract match data using GPT-4o
     5. Print JSON results to console
+    
+    Event parameters:
+        timestamp (optional): Custom date to use. Supports:
+            - YYYYMMDD format (e.g., "20241231")
+            - ISO format (e.g., "2024-12-31" or "2024-12-31T00:00:00")
+            - Unix timestamp in seconds (e.g., 1735689600)
+        If not provided, uses previous day in Pacific time.
     """
     try:
         # Get OpenAI API key from environment variable
@@ -173,13 +240,23 @@ def handler(event, context):
         # Initialize OpenAI client
         client = OpenAI(api_key=openai_api_key)
         
-        # 1. Get previous day's date in PST/PDT (Pacific time)
+        # 1. Get target date (from input or default to previous day in Pacific time)
         pacific_tz = ZoneInfo("America/Los_Angeles")
-        now_pacific = datetime.now(pacific_tz)
-        yesterday_pacific = now_pacific - timedelta(days=1)
         
-        yesterday = yesterday_pacific.strftime('%Y%m%d')
-        yesterday_readable = yesterday_pacific.strftime('%B %d, %Y')
+        # Check if a custom timestamp was provided in the event
+        custom_timestamp = event.get('timestamp') if isinstance(event, dict) else None
+        
+        if custom_timestamp:
+            print(f"Using custom timestamp: {custom_timestamp}")
+            target_date = parse_timestamp(custom_timestamp, pacific_tz)
+        else:
+            # Default behavior: use previous day in Pacific time
+            now_pacific = datetime.now(pacific_tz)
+            target_date = now_pacific - timedelta(days=1)
+            print("No custom timestamp provided, using previous day in Pacific time")
+        
+        yesterday = target_date.strftime('%Y%m%d')
+        yesterday_readable = target_date.strftime('%B %d, %Y')
         
         print(f"Processing soccer matches for: {yesterday_readable}")
         print("=" * 60)
