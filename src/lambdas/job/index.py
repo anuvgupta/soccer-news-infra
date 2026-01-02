@@ -85,6 +85,28 @@ def extract_matches_with_gpt(client, html_content, date_str):
     Returns:
         dict: Match data with structure defined in prompt
     """
+    # Load relevant competitions from file
+    competitions_file = os.path.join(os.path.dirname(__file__), 'competitions.txt')
+    try:
+        with open(competitions_file, 'r') as f:
+            competitions = [line.strip() for line in f if line.strip()]
+        competitions_list = '\n'.join([f"- {comp}" for comp in competitions])
+        print(f"Loaded {len(competitions)} relevant competitions from {competitions_file}")
+    except FileNotFoundError:
+        print(f"Warning: {competitions_file} not found, processing all competitions")
+        competitions_list = "- (All competitions)"
+        competitions = []
+    
+    # Build prompt with competition filter
+    competitions_instruction = ""
+    if competitions:
+        competitions_instruction = f"""
+IMPORTANT: Only extract matches from these relevant competitions:
+{competitions_list}
+
+Ignore all other competitions/leagues not listed above.
+"""
+    
     prompt = f"""Extract all completed soccer matches from this ESPN schedule HTML for {date_str}.
 
 Each section has a league/competition name in the Table__Title div. For each completed match, extract:
@@ -93,6 +115,8 @@ Each section has a league/competition name in the Table__Title div. For each com
 - team2: The second team name shown
 - score: The final score in format "X-Y" (e.g., "1-3") where X is team1's score and Y is team2's score
 - match_url: The ESPN match page URL (format: https://www.espn.com/soccer/match/_/gameId/######)
+
+{competitions_instruction}
 
 Do NOT determine the winner - just extract the league, team names, score, and URL exactly as shown.
 
