@@ -87,18 +87,20 @@ def extract_matches_with_gpt(client, html_content, date_str):
     """
     prompt = f"""Extract all completed soccer matches from this ESPN schedule HTML for {date_str}.
 
-For each completed match, extract the following information:
+Each section has a league/competition name in the Table__Title div. For each completed match, extract:
+- league: The league/competition name from the Table__Title (e.g., "English Premier League", "Africa Cup of Nations")
 - team1: The first team name shown
 - team2: The second team name shown
 - score: The final score in format "X-Y" (e.g., "1-3") where X is team1's score and Y is team2's score
 - match_url: The ESPN match page URL (format: https://www.espn.com/soccer/match/_/gameId/######)
 
-Do NOT determine the winner - just extract the team names, score, and URL exactly as shown.
+Do NOT determine the winner - just extract the league, team names, score, and URL exactly as shown.
 
 Return JSON with this exact structure:
 {{
   "matches": [
     {{
+      "league": "English Premier League",
       "team1": "Burnley",
       "team2": "Newcastle United",
       "score": "1-3",
