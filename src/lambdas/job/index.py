@@ -267,6 +267,100 @@ HTML content:
     return result
 
 
+def summarize_for_sms(client, matches_data, date_str):
+    """
+    Use GPT-4o to summarize match results into an SMS notification format
+    
+    Args:
+        client: OpenAI client instance
+        matches_data: List of match dictionaries with reports
+        date_str: Date string for context (e.g., "December 31, 2024")
+    
+    Returns:
+        str: Formatted SMS notification with headline and description
+    """
+    if not matches_data:
+        return "No matches found for this date."
+    
+    # Prepare match data for summarization (exclude long HTML reports from prompt)
+    matches_summary = []
+    for match in matches_data:
+        match_info = {
+            'league': match.get('league', ''),
+            'team1': match.get('team1', ''),
+            'team2': match.get('team2', ''),
+            'score': match.get('score', ''),
+            'winner': match.get('winner', '')
+        }
+        # Include a truncated version of the report for context
+        report = match.get('report', '')
+        if report and len(report) > 15000:
+            match_info['report_excerpt'] = report[:15000] + '...'
+        elif report:
+            match_info['report_excerpt'] = report
+        else:
+            match_info['report_excerpt'] = 'No report available'
+        
+        matches_summary.append(match_info)
+    
+    prompt = f"""You are creating an SMS notification for soccer match results from {date_str}.
+
+MATCH DATA:
+{json.dumps(matches_summary, indent=2)}
+
+Create an SMS notification with this EXACT format:
+
+1. HEADLINE (first line):
+   - Maximum 100 characters (HARD LIMIT - must fit on iPhone lock screen)
+   - Focus on the most significant event(s): finals, semifinals, major upsets, surprising wins, popular teams (e.g., Real Madrid, Barcelona, Manchester United, Liverpool, etc.), or significant knockouts
+   - Be specific and compelling
+   - Examples: "Real Madrid wins 3-1 in Champions League semifinal", "Liverpool upset 2-0 by underdog Burnley"
+
+2. THREE BLANK LINES after headline (just newlines, no text)
+
+3. DESCRIPTION (7-10 sentences):
+   - Plain, simple, concise language
+   - First, expand on the headline event with more details
+   - Then cover other significant matches from the day
+   - Do NOT omit any key events or results
+   - Separate different topics/leagues with one blank line
+   - Focus on outcomes and significance, not flowery language
+
+FORMAT REQUIREMENTS:
+- Return ONLY the formatted notification text
+- No labels like "HEADLINE:" or "DESCRIPTION:"
+- Exactly 3 newlines between headline and description
+- 7-10 sentences total in the description
+
+Example format:
+Manchester United advances to FA Cup final with 2-1 win
+
+
+United's dramatic late goal secured their spot in the final against Arsenal. The match was tied 1-1 until the 88th minute.
+
+In the Premier League, Liverpool defeated Chelsea 3-0 to move into second place. Mohamed Salah scored twice in the first half.
+
+Barcelona drew 1-1 with Atletico Madrid in La Liga. The result keeps Barcelona at the top of the table with a 5-point lead."""
+
+    print(f"Sending match data to GPT-4o for SMS summarization...")
+    
+    response = client.chat.completions.create(
+        model="gpt-4o",
+        messages=[{
+            "role": "user",
+            "content": prompt
+        }],
+        max_tokens=1000,
+        temperature=0.7
+    )
+    
+    sms_notification = response.choices[0].message.content.strip()
+    
+    print(f"GPT-4o generated SMS notification ({len(sms_notification)} characters)")
+    
+    return sms_notification
+
+
 def parse_timestamp(timestamp_input, timezone):
     """
     Parse various timestamp formats into a datetime object in the specified timezone
@@ -384,15 +478,8 @@ def handler(event, context):
             keyword='ScheduleTables'
         )
         
-        # 3. Debug: Print the HTML we received
+        # 3. Use the HTML directly (no need to truncate since we already extracted specific classes)
         print(f"\nReceived HTML length: {len(html)} characters")
-        print("\n" + "=" * 80)
-        print("DEBUG: HTML CONTENT FROM BROWSER LAMBDA")
-        print("=" * 80)
-        print(html)
-        print("=" * 80 + "\n")
-        
-        # Use the HTML directly (no need to truncate since we already extracted specific classes)
         truncated_html = html[:50000]  # Still limit to 50K for GPT token limits
         
         # 4. Extract match data using GPT-4o
@@ -408,7 +495,21 @@ def handler(event, context):
         else:
             print("\nNo matches found, skipping report fetching")
         
-        # 6. Print JSON results to console
+        # 6. Generate SMS notification summary
+        print("\n" + "=" * 60)
+        print("GENERATING SMS NOTIFICATION...")
+        print("=" * 60)
+        
+        sms_notification = summarize_for_sms(client, result.get('matches', []), yesterday_readable)
+        result['sms_notification'] = sms_notification
+        
+        print("\n" + "=" * 60)
+        print("SMS NOTIFICATION:")
+        print("=" * 60)
+        print(sms_notification)
+        print("=" * 60)
+        
+        # 7. Print JSON results to console
         print("\n" + "=" * 60)
         print("MATCH RESULTS (JSON):")
         print("=" * 60)
