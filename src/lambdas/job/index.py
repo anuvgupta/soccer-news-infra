@@ -337,8 +337,9 @@ Create an SMS notification with this EXACT format:
 
 2. THREE BLANK LINES after headline (just newlines, no text)
 
-3. DESCRIPTION (7-10 sentences):
-   - Plain, simple, concise language
+3. DESCRIPTION (max 8 sentences, max 100 words):
+   - NOT overly verbose - speak quickly and plainly
+   - Use short, direct sentences
    - First, expand on the headline event with more details
    - Then cover other significant completed matches from the day
    - ONLY if there are actual upcoming matches in the provided data (score="upcoming"), mention them at the end
@@ -346,12 +347,13 @@ Create an SMS notification with this EXACT format:
    - Do NOT omit any key events or results
    - Separate different topics/leagues with one blank line
    - Focus on outcomes and significance, not flowery language
+   - CRITICAL: Maximum 8 sentences and 100 words total
 
 FORMAT REQUIREMENTS:
 - Return ONLY the formatted notification text
 - No labels like "HEADLINE:" or "DESCRIPTION:"
 - Exactly 3 newlines between headline and description
-- 7-10 sentences total in the description
+- Maximum 8 sentences and 100 words in the description
 
 Example format:
 Manchester United advances to FA Cup final with 2-1 win
