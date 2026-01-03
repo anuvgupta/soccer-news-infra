@@ -325,6 +325,8 @@ MATCH DATA:
 
 Note: Matches with score="upcoming" and winner="Upcoming" have not been played yet.
 
+CRITICAL: Only use information from the match data provided above. Do NOT make up or invent any matches, upcoming or otherwise. If there are no upcoming matches in the data, do not mention upcoming matches at all.
+
 Create an SMS notification with this EXACT format:
 
 1. HEADLINE (first line):
@@ -339,7 +341,8 @@ Create an SMS notification with this EXACT format:
    - Plain, simple, concise language
    - First, expand on the headline event with more details
    - Then cover other significant completed matches from the day
-   - If there are notable upcoming matches (especially involving popular teams or important competitions), mention them at the end
+   - ONLY if there are actual upcoming matches in the provided data (score="upcoming"), mention them at the end
+   - Do NOT invent or make up upcoming matches that are not in the provided match data
    - Do NOT omit any key events or results
    - Separate different topics/leagues with one blank line
    - Focus on outcomes and significance, not flowery language
