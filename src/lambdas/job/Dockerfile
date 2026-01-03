@@ -10,8 +10,9 @@ RUN pip install --no-cache-dir -r ${LAMBDA_TASK_ROOT}/requirements.txt
 # Copy Lambda function code
 COPY index.py ${LAMBDA_TASK_ROOT}/
 
-# Copy competitions configuration file
+# Copy competitions configuration files
 COPY competitions.txt ${LAMBDA_TASK_ROOT}/
+COPY competition_standings_urls.txt ${LAMBDA_TASK_ROOT}/
 
 # Set the CMD to your handler
 CMD [ "index.handler" ]
