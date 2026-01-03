@@ -54,20 +54,22 @@ export class SoccerNewsStack extends cdk.Stack {
         // Grant Job Lambda permission to invoke Browser Lambda
         browserLambda.grantInvoke(jobLambda);
 
-        // Create EventBridge rule to trigger Lambda daily at 9am UTC (commented out for now)
-        // const schedule = new events.Rule(this, "SoccerNewsSchedule", {
-        //     schedule: events.Schedule.cron({
-        //         minute: "0",
-        //         hour: "9",
-        //         day: "*",
-        //         month: "*",
-        //         year: "*",
-        //     }),
-        //     description: "Trigger soccer news Lambda daily at 9am UTC",
-        // });
+        // Create EventBridge rule to trigger Lambda daily at 10am PST (6pm UTC)
+        // Note: This uses PST timezone (UTC-8). During PDT (daylight saving), this will run at 11am Pacific time.
+        const schedule = new events.Rule(this, "SoccerNewsSchedule", {
+            schedule: events.Schedule.cron({
+                minute: "0",
+                hour: "18", // 6pm UTC = 10am PST
+                day: "*",
+                month: "*",
+                year: "*",
+            }),
+            description:
+                "Trigger soccer news Lambda daily at 10am PST (6pm UTC)",
+        });
 
-        // // Add Lambda as target for the schedule
-        // schedule.addTarget(new targets.LambdaFunction(jobLambda));
+        // Add Lambda as target for the schedule
+        schedule.addTarget(new targets.LambdaFunction(jobLambda));
 
         // Output the Lambda function names for easy testing
         new cdk.CfnOutput(this, "JobLambdaFunctionName", {
