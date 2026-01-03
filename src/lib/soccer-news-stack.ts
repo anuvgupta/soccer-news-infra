@@ -8,6 +8,7 @@ import * as path from "path";
 interface SoccerNewsStackProps extends cdk.StackProps {
     stageName: string;
     openaiApiKey: string;
+    discordWebhookUrl: string;
 }
 
 export class SoccerNewsStack extends cdk.Stack {
@@ -46,6 +47,7 @@ export class SoccerNewsStack extends cdk.Stack {
             environment: {
                 OPENAI_API_KEY: props.openaiApiKey,
                 BROWSER_LAMBDA_ARN: browserLambda.functionArn,
+                DISCORD_WEBHOOK_URL: props.discordWebhookUrl,
             },
         });
 

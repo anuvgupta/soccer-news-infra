@@ -17,7 +17,9 @@ if (!stage) {
 // Validate environment variables
 const openaiApiKeyName =
     stage === "prod" ? "OPENAI_API_KEY_PROD" : "OPENAI_API_KEY_DEV";
-const requiredEnvVars = [openaiApiKeyName];
+const discordWebhookUrlName =
+    stage === "prod" ? "DISCORD_WEBHOOK_URL_PROD" : "DISCORD_WEBHOOK_URL_DEV";
+const requiredEnvVars = [openaiApiKeyName, discordWebhookUrlName];
 for (const envVar of requiredEnvVars) {
     if (!process.env[envVar]) {
         throw new Error(`Missing required environment variable: ${envVar}`);
@@ -40,6 +42,10 @@ new SoccerNewsStack(app, `SoccerNews-${stage}`, {
         stage === "prod"
             ? process.env.OPENAI_API_KEY_PROD!
             : process.env.OPENAI_API_KEY_DEV!,
+    discordWebhookUrl:
+        stage === "prod"
+            ? process.env.DISCORD_WEBHOOK_URL_PROD!
+            : process.env.DISCORD_WEBHOOK_URL_DEV!,
     stageName: stage,
     env: {
         account: process.env.CDK_DEFAULT_ACCOUNT,

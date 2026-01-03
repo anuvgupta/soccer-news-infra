@@ -5,6 +5,7 @@ from zoneinfo import ZoneInfo
 from openai import OpenAI
 import boto3
 from concurrent.futures import ThreadPoolExecutor, as_completed
+import requests
 
 
 def invoke_browser_lambda(url, operation=None, keyword=None, timeout=60000, delay=5000):
@@ -361,6 +362,37 @@ Barcelona drew 1-1 with Atletico Madrid in La Liga. The result keeps Barcelona a
     return sms_notification
 
 
+def send_to_discord(webhook_url, message):
+    """
+    Send a message to Discord via webhook
+    
+    Args:
+        webhook_url: Discord webhook URL
+        message: Message content to send
+    
+    Returns:
+        bool: True if successful, False otherwise
+    """
+    try:
+        payload = {
+            "content": message
+        }
+        
+        print(f"Sending message to Discord webhook...")
+        response = requests.post(webhook_url, json=payload)
+        
+        if response.status_code in [200, 204]:
+            print(f"✓ Successfully sent message to Discord")
+            return True
+        else:
+            print(f"✗ Discord webhook returned status {response.status_code}: {response.text}")
+            return False
+            
+    except Exception as e:
+        print(f"✗ Error sending to Discord: {e}")
+        return False
+
+
 def parse_timestamp(timestamp_input, timezone):
     """
     Parse various timestamp formats into a datetime object in the specified timezone
@@ -508,6 +540,17 @@ def handler(event, context):
         print("=" * 60)
         print(sms_notification)
         print("=" * 60)
+        
+        # Send to Discord webhook
+        discord_webhook_url = os.environ.get('DISCORD_WEBHOOK_URL')
+        if discord_webhook_url:
+            print("\n" + "=" * 60)
+            print("SENDING TO DISCORD...")
+            print("=" * 60)
+            discord_success = send_to_discord(discord_webhook_url, sms_notification)
+            result['discord_sent'] = discord_success
+        else:
+            print("\nDISCORD_WEBHOOK_URL not set, skipping Discord notification")
         
         # 7. Print JSON results to console
         print("\n" + "=" * 60)
