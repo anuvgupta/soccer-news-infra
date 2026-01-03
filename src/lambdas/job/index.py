@@ -162,14 +162,14 @@ def fetch_reports_in_batches(matches, batch_size=10):
     return enriched_matches
 
 
-def extract_matches_with_gpt(client, html_content, date_range_str):
+def extract_matches_with_gpt(client, html_content, date_str):
     """
     Use GPT-4o to extract match data from HTML
     
     Args:
         client: OpenAI client instance
         html_content: HTML content (already truncated)
-        date_range_str: Date range string for context (e.g., "January 1-2, 2025")
+        date_str: Date string for context (e.g., "January 1, 2025")
     
     Returns:
         dict: Match data with structure defined in prompt
@@ -196,9 +196,9 @@ IMPORTANT: Only extract matches from these relevant competitions:
 Ignore all other competitions/leagues not listed above.
 """
     
-    prompt = f"""Extract all soccer matches (both completed and upcoming) from this ESPN schedule HTML for {date_range_str}.
+    prompt = f"""Extract all soccer matches (both completed and upcoming) from this ESPN schedule HTML for {date_str}.
 
-The HTML contains schedule data from two consecutive days. Each section has a league/competition name in the Table__Title div. For each match, extract:
+Each section has a league/competition name in the Table__Title div. For each match, extract:
 - league: The league/competition name from the Table__Title (e.g., "English Premier League", "Africa Cup of Nations")
 - team1: The first team name shown
 - team2: The second team name shown
@@ -555,21 +555,42 @@ def handler(event, context):
         print(f"\nReceived HTML from yesterday: {len(html_yesterday)} characters")
         print(f"Received HTML from today: {len(html_today)} characters")
         
-        # 3. Combine HTML from both days with separators
-        combined_html = f"""<!-- Yesterday: {yesterday_readable} -->
-{html_yesterday}
-
-<!-- Today: {today_readable} -->
-{html_today}
-"""
+        # 3. Truncate each HTML separately (full 50K budget per day)
+        truncated_html_yesterday = html_yesterday[:50000]
+        truncated_html_today = html_today[:50000]
         
-        print(f"Combined HTML length: {len(combined_html)} characters")
-        truncated_html = combined_html[:50000]  # Still limit to 50K for GPT token limits
+        # 4. Extract match data using GPT-4o (parallel calls for both days)
+        print("\nExtracting match data with GPT-4o (parallel calls for both days)...")
         
-        # 4. Extract match data using GPT-4o
-        print("\nExtracting match data with GPT-4o...")
-        date_range_str = f"{yesterday_readable} and {today_readable}"
-        result = extract_matches_with_gpt(client, truncated_html, date_range_str)
+        # Parallel GPT extraction
+        with ThreadPoolExecutor(max_workers=2) as executor:
+            future_yesterday = executor.submit(
+                extract_matches_with_gpt,
+                client,
+                truncated_html_yesterday,
+                yesterday_readable
+            )
+            future_today = executor.submit(
+                extract_matches_with_gpt,
+                client,
+                truncated_html_today,
+                today_readable
+            )
+            
+            # Get results from both futures
+            result_yesterday = future_yesterday.result()
+            result_today = future_today.result()
+        
+        # Combine matches from both days
+        matches_yesterday = result_yesterday.get('matches', [])
+        matches_today = result_today.get('matches', [])
+        all_matches = matches_yesterday + matches_today
+        
+        result = {
+            'matches': all_matches
+        }
+        
+        print(f"Extracted {len(matches_yesterday)} matches from yesterday, {len(matches_today)} matches from today (total: {len(all_matches)})")
         
         # 5. Fetch match reports for completed matches only
         matches = result.get('matches', [])
@@ -601,6 +622,7 @@ def handler(event, context):
         print("GENERATING SMS NOTIFICATION...")
         print("=" * 60)
         
+        date_range_str = f"{yesterday_readable} and {today_readable}"
         sms_notification = summarize_for_sms(client, result.get('matches', []), date_range_str)
         result['sms_notification'] = sms_notification
         
