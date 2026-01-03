@@ -162,14 +162,14 @@ def fetch_reports_in_batches(matches, batch_size=10):
     return enriched_matches
 
 
-def extract_matches_with_gpt(client, html_content, date_str):
+def extract_matches_with_gpt(client, html_content, date_range_str):
     """
     Use GPT-4o to extract match data from HTML
     
     Args:
         client: OpenAI client instance
         html_content: HTML content (already truncated)
-        date_str: Date string in YYYYMMDD format
+        date_range_str: Date range string for context (e.g., "January 1-2, 2025")
     
     Returns:
         dict: Match data with structure defined in prompt
@@ -196,9 +196,9 @@ IMPORTANT: Only extract matches from these relevant competitions:
 Ignore all other competitions/leagues not listed above.
 """
     
-    prompt = f"""Extract all completed soccer matches from this ESPN schedule HTML for {date_str}.
+    prompt = f"""Extract all completed soccer matches from this ESPN schedule HTML for {date_range_str}.
 
-Each section has a league/competition name in the Table__Title div. For each completed match, extract:
+The HTML contains schedule data from two consecutive days. Each section has a league/competition name in the Table__Title div. For each completed match, extract:
 - league: The league/competition name from the Table__Title (e.g., "English Premier League", "Africa Cup of Nations")
 - team1: The first team name shown
 - team2: The second team name shown
@@ -456,19 +456,21 @@ def parse_timestamp(timestamp_input, timezone):
 def handler(event, context):
     """
     Lambda handler - simplified flow:
-    1. Get target date (from input or default to previous day)
-    2. Build ESPN schedule URL and fetch HTML via Browser Lambda
-    3. Intelligently truncate HTML to relevant section
-    4. Extract match data using GPT-4o
-    5. Fetch match reports in parallel (batches of 10)
-    6. Print JSON results to console
+    1. Get target date (from input or default to current time in Pacific time)
+    2. Calculate both today and yesterday dates
+    3. Build ESPN schedule URLs for both dates and fetch HTML via Browser Lambda in parallel
+    4. Combine HTML from both days and truncate to relevant section
+    5. Extract match data using GPT-4o
+    6. Fetch match reports in parallel (batches of 10)
+    7. Generate SMS notification and print JSON results to console
     
     Event parameters:
-        timestamp (optional): Custom date to use. Supports:
+        timestamp (optional): Custom date to use as "today". Supports:
             - YYYYMMDD format (e.g., "20241231")
             - ISO format (e.g., "2024-12-31" or "2024-12-31T00:00:00")
             - Unix timestamp in seconds (e.g., 1735689600)
-        If not provided, uses previous day in Pacific time.
+        If not provided, uses current time in Pacific time as "today".
+        Yesterday is calculated as exactly 24 hours before "today".
     """
     try:
         # Get OpenAI API key from environment variable
@@ -479,7 +481,7 @@ def handler(event, context):
         # Initialize OpenAI client
         client = OpenAI(api_key=openai_api_key)
         
-        # 1. Get target date (from input or default to previous day in Pacific time)
+        # 1. Get target date (from input or default to current time in Pacific time)
         pacific_tz = ZoneInfo("America/Los_Angeles")
         
         # Check if a custom timestamp was provided in the event
@@ -487,36 +489,70 @@ def handler(event, context):
         
         if custom_timestamp:
             print(f"Using custom timestamp: {custom_timestamp}")
-            target_date = parse_timestamp(custom_timestamp, pacific_tz)
+            today_date = parse_timestamp(custom_timestamp, pacific_tz)
         else:
-            # Default behavior: use previous day in Pacific time
-            now_pacific = datetime.now(pacific_tz)
-            target_date = now_pacific - timedelta(days=1)
-            print("No custom timestamp provided, using previous day in Pacific time")
+            # Default behavior: use current time in Pacific time
+            today_date = datetime.now(pacific_tz)
+            print("No custom timestamp provided, using current time in Pacific time")
         
-        yesterday = target_date.strftime('%Y%m%d')
-        yesterday_readable = target_date.strftime('%B %d, %Y')
+        # Calculate yesterday (exactly 24 hours before today)
+        yesterday_date = today_date - timedelta(days=1)
         
-        print(f"Processing soccer matches for: {yesterday_readable}")
+        # Format both dates
+        today = today_date.strftime('%Y%m%d')
+        today_readable = today_date.strftime('%B %d, %Y')
+        yesterday = yesterday_date.strftime('%Y%m%d')
+        yesterday_readable = yesterday_date.strftime('%B %d, %Y')
+        
+        print(f"Processing soccer matches for: {yesterday_readable} and {today_readable}")
         print("=" * 60)
         
-        # 2. Build URL and fetch HTML via Browser Lambda with find_classes operation
-        url = f"https://www.espn.com/soccer/schedule/_/date/{yesterday}"
-        print(f"\nFetching HTML from: {url}")
-        print(f"Operation: find_classes, Keyword: ScheduleTables")
-        html = invoke_browser_lambda(
-            url=url,
-            operation='find_classes',
-            keyword='ScheduleTables'
-        )
+        # 2. Build URLs for both dates and fetch HTML via Browser Lambda in parallel
+        yesterday_url = f"https://www.espn.com/soccer/schedule/_/date/{yesterday}"
+        today_url = f"https://www.espn.com/soccer/schedule/_/date/{today}"
         
-        # 3. Use the HTML directly (no need to truncate since we already extracted specific classes)
-        print(f"\nReceived HTML length: {len(html)} characters")
-        truncated_html = html[:50000]  # Still limit to 50K for GPT token limits
+        print(f"\nFetching HTML from both dates in parallel:")
+        print(f"  Yesterday: {yesterday_url}")
+        print(f"  Today: {today_url}")
+        print(f"Operation: find_classes, Keyword: ScheduleTables")
+        
+        # Use ThreadPoolExecutor to fetch both URLs in parallel
+        with ThreadPoolExecutor(max_workers=2) as executor:
+            future_yesterday = executor.submit(
+                invoke_browser_lambda,
+                yesterday_url,
+                'find_classes',
+                'ScheduleTables'
+            )
+            future_today = executor.submit(
+                invoke_browser_lambda,
+                today_url,
+                'find_classes',
+                'ScheduleTables'
+            )
+            
+            # Get results from both futures
+            html_yesterday = future_yesterday.result()
+            html_today = future_today.result()
+        
+        print(f"\nReceived HTML from yesterday: {len(html_yesterday)} characters")
+        print(f"Received HTML from today: {len(html_today)} characters")
+        
+        # 3. Combine HTML from both days with separators
+        combined_html = f"""<!-- Yesterday: {yesterday_readable} -->
+{html_yesterday}
+
+<!-- Today: {today_readable} -->
+{html_today}
+"""
+        
+        print(f"Combined HTML length: {len(combined_html)} characters")
+        truncated_html = combined_html[:50000]  # Still limit to 50K for GPT token limits
         
         # 4. Extract match data using GPT-4o
         print("\nExtracting match data with GPT-4o...")
-        result = extract_matches_with_gpt(client, truncated_html, yesterday)
+        date_range_str = f"{yesterday_readable} and {today_readable}"
+        result = extract_matches_with_gpt(client, truncated_html, date_range_str)
         
         # 5. Fetch match reports for each match
         matches = result.get('matches', [])
@@ -532,7 +568,7 @@ def handler(event, context):
         print("GENERATING SMS NOTIFICATION...")
         print("=" * 60)
         
-        sms_notification = summarize_for_sms(client, result.get('matches', []), yesterday_readable)
+        sms_notification = summarize_for_sms(client, result.get('matches', []), date_range_str)
         result['sms_notification'] = sms_notification
         
         print("\n" + "=" * 60)
