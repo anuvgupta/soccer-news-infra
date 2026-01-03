@@ -1,0 +1,8 @@
+FIFA World Cup - https://www.espn.com/soccer/standings/_/league/fifa.world
+FIFA Club World Cup - https://www.espn.com/soccer/standings/_/league/fifa.cwc
+UEFA Champion's League - https://www.espn.com/soccer/standings/_/league/uefa.champions
+UEFA European Championship - https://www.espn.com/soccer/standings/_/league/uefa.euro
+CONMEBOL Copa America - https://www.espn.com/soccer/standings/_/league/conmebol.america
+English Premier League - https://www.espn.com/soccer/standings/_/league/eng.1
+Major League Soccer - https://www.espn.com/soccer/standings/_/league/usa.1
+La Liga - https://www.espn.com/soccer/standings/_/league/esp.1

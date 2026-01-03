@@ -75,6 +75,42 @@ def invoke_browser_lambda(url, operation=None, keyword=None, timeout=60000, dela
         raise
 
 
+def load_standings_urls():
+    """
+    Load standings URLs from competition_standings_urls.txt file
+    
+    Returns:
+        dict: Mapping of competition names to standings URLs
+              e.g., {"English Premier League": "https://..."}
+    """
+    standings_file = os.path.join(os.path.dirname(__file__), 'competition_standings_urls.txt')
+    standings_mapping = {}
+    
+    try:
+        with open(standings_file, 'r') as f:
+            for line in f:
+                line = line.strip()
+                if not line:
+                    continue
+                
+                # Parse format: "Competition Name - URL"
+                if ' - ' in line:
+                    parts = line.split(' - ', 1)
+                    competition_name = parts[0].strip()
+                    url = parts[1].strip()
+                    standings_mapping[competition_name] = url
+        
+        print(f"Loaded {len(standings_mapping)} standings URLs from {standings_file}")
+        return standings_mapping
+        
+    except FileNotFoundError:
+        print(f"Warning: {standings_file} not found")
+        return {}
+    except Exception as e:
+        print(f"Error loading standings URLs: {e}")
+        return {}
+
+
 def fetch_match_report(match_data):
     """
     Fetch the match report page for a given match
@@ -162,7 +198,78 @@ def fetch_reports_in_batches(matches, batch_size=10):
     return enriched_matches
 
 
-def extract_matches_with_gpt(client, html_content, date_str):
+def fetch_standings_in_parallel(standings_urls):
+    """
+    Fetch standings HTML for all competitions in parallel
+    
+    Args:
+        standings_urls: List of dicts with 'competition' and 'url' keys
+                       e.g., [{"competition": "English Premier League", "url": "https://..."}]
+    
+    Returns:
+        list: Standings data with HTML content added
+              e.g., [{"competition": "...", "url": "...", "html": "..."}]
+    """
+    if not standings_urls:
+        return []
+    
+    print(f"\nFetching standings for {len(standings_urls)} competitions in parallel...")
+    
+    def fetch_single_standing(standing_data):
+        """Fetch standings HTML for a single competition"""
+        try:
+            competition = standing_data.get('competition', '')
+            url = standing_data.get('url', '')
+            
+            print(f"Fetching standings for {competition} from {url}")
+            
+            # Call browser lambda to extract standings__table class
+            html = invoke_browser_lambda(
+                url=url,
+                operation='find_classes',
+                keyword='standings__table'
+            )
+            
+            return {
+                'competition': competition,
+                'url': url,
+                'html': html
+            }
+            
+        except Exception as e:
+            print(f"Error fetching standings for {standing_data.get('competition')}: {e}")
+            return {
+                'competition': standing_data.get('competition', ''),
+                'url': standing_data.get('url', ''),
+                'html': ''
+            }
+    
+    # Use ThreadPoolExecutor to fetch all standings in parallel
+    enriched_standings = []
+    with ThreadPoolExecutor(max_workers=len(standings_urls)) as executor:
+        # Submit all tasks
+        future_to_standing = {executor.submit(fetch_single_standing, standing): standing for standing in standings_urls}
+        
+        # Collect results as they complete
+        for future in as_completed(future_to_standing):
+            try:
+                standing_data = future.result()
+                enriched_standings.append(standing_data)
+                print(f"  ✓ Standings fetched for {standing_data.get('competition')} ({len(standing_data.get('html', ''))} chars)")
+            except Exception as e:
+                standing = future_to_standing[future]
+                print(f"  ✗ Failed to fetch standings for {standing.get('competition')}: {e}")
+                enriched_standings.append({
+                    'competition': standing.get('competition', ''),
+                    'url': standing.get('url', ''),
+                    'html': ''
+                })
+    
+    print(f"\nCompleted fetching standings for {len(enriched_standings)} competitions")
+    return enriched_standings
+
+
+def extract_matches_with_gpt(client, html_content, date_str, standings_mapping=None):
     """
     Use GPT-4o to extract match data from HTML
     
@@ -170,9 +277,10 @@ def extract_matches_with_gpt(client, html_content, date_str):
         client: OpenAI client instance
         html_content: HTML content (already truncated)
         date_str: Date string for context (e.g., "January 1, 2025")
+        standings_mapping: Optional dict mapping competition names to standings URLs
     
     Returns:
-        dict: Match data with structure defined in prompt
+        dict: Match data with structure defined in prompt, including standings_urls array
     """
     # Load relevant competitions from file
     competitions_file = os.path.join(os.path.dirname(__file__), 'competitions.txt')
@@ -196,6 +304,25 @@ IMPORTANT: Only extract matches from these relevant competitions:
 Ignore all other competitions/leagues not listed above.
 """
     
+    # Build standings URLs section if provided
+    standings_instruction = ""
+    standings_urls_format = ""
+    if standings_mapping:
+        standings_list = '\n'.join([f"- {comp}: {url}" for comp, url in standings_mapping.items()])
+        standings_instruction = f"""
+STANDINGS URLS AVAILABLE:
+{standings_list}
+
+After extracting matches, identify which competitions had matches and include their standings URLs.
+"""
+        standings_urls_format = """,
+  "standings_urls": [
+    {{
+      "competition": "English Premier League",
+      "url": "https://www.espn.com/soccer/standings/_/league/eng.1"
+    }}
+  ]"""
+    
     prompt = f"""Extract all soccer matches (both completed and upcoming) from this ESPN schedule HTML for {date_str}.
 
 Each section has a league/competition name in the Table__Title div. For each match, extract:
@@ -207,6 +334,8 @@ Each section has a league/competition name in the Table__Title div. For each mat
 - match_url: The ESPN match page URL (format: https://www.espn.com/soccer/match/_/gameId/######)
 
 {competitions_instruction}
+
+{standings_instruction}
 
 Do NOT determine the winner - just extract the league, team names, score, and URL exactly as shown.
 
@@ -227,7 +356,7 @@ Return JSON with this exact structure:
       "score": "upcoming",
       "match_url": "https://www.espn.com/soccer/match/_/gameId/740779"
     }}
-  ]
+  ]{standings_urls_format}
 }}
 
 HTML content:
@@ -282,7 +411,7 @@ HTML content:
     return result
 
 
-def summarize_for_sms(client, matches_data, date_str):
+def summarize_for_sms(client, matches_data, date_str, standings_data=None):
     """
     Use GPT-4o to summarize match results into an SMS notification format
     
@@ -290,9 +419,10 @@ def summarize_for_sms(client, matches_data, date_str):
         client: OpenAI client instance
         matches_data: List of match dictionaries with reports
         date_str: Date string for context (e.g., "December 31, 2024")
+        standings_data: Optional list of standings dicts with HTML content
     
     Returns:
-        str: Formatted SMS notification with headline and description
+        str: Formatted SMS notification with headline, description, and standings summary
     """
     if not matches_data:
         return "No matches found for this date."
@@ -318,12 +448,40 @@ def summarize_for_sms(client, matches_data, date_str):
         
         matches_summary.append(match_info)
     
+    # Prepare standings data if provided
+    standings_section = ""
+    if standings_data:
+        standings_summary = []
+        for standing in standings_data:
+            standing_info = {
+                'competition': standing.get('competition', ''),
+                'url': standing.get('url', '')
+            }
+            # Include a truncated version of the HTML for context
+            html = standing.get('html', '')
+            if html and len(html) > 20000:
+                standing_info['html_excerpt'] = html[:20000] + '...'
+            elif html:
+                standing_info['html_excerpt'] = html
+            else:
+                standing_info['html_excerpt'] = 'No standings data available'
+            
+            standings_summary.append(standing_info)
+        
+        standings_section = f"""
+
+STANDINGS DATA:
+{json.dumps(standings_summary, indent=2)}
+
+The standings HTML contains table data showing team positions, points, wins, losses, draws, goals for/against, etc.
+Use this data to provide current standings context in your description and create a separate standings summary."""
+    
     prompt = f"""You are creating an SMS notification for soccer match results and upcoming matches from {date_str}.
 
 MATCH DATA:
 {json.dumps(matches_summary, indent=2)}
 
-Note: Matches with score="upcoming" and winner="Upcoming" have not been played yet.
+Note: Matches with score="upcoming" and winner="Upcoming" have not been played yet.{standings_section}
 
 CRITICAL: Only use information from the match data provided above. Do NOT make up or invent any matches, upcoming or otherwise. If there are no upcoming matches in the data, do not mention upcoming matches at all.
 
@@ -342,6 +500,7 @@ Create an SMS notification with this EXACT format:
    - Use short, direct sentences
    - First, expand on the headline event with more details
    - Then cover other significant completed matches from the day
+   - When relevant, include current standings context (e.g., "moves them to 2nd place", "extends their lead at the top")
    - ONLY if there are actual upcoming matches in the provided data (score="upcoming"), mention them at the end
    - Do NOT invent or make up upcoming matches that are not in the provided match data
    - Do NOT omit any key events or results
@@ -349,11 +508,22 @@ Create an SMS notification with this EXACT format:
    - Focus on outcomes and significance, not flowery language
    - CRITICAL: Maximum 8 sentences and 100 words total
 
+4. THREE BLANK LINES after description (just newlines, no text)
+
+5. STANDINGS SUMMARY (if standings data provided):
+   - Start with "STANDINGS:" on its own line
+   - For each competition that had matches, provide a brief plain-text summary of the current standings
+   - Focus on top teams (top 3-5) and their points
+   - Mention any tight races or significant gaps
+   - Use concise, readable prose format
+   - Separate different competitions with one blank line
+
 FORMAT REQUIREMENTS:
 - Return ONLY the formatted notification text
-- No labels like "HEADLINE:" or "DESCRIPTION:"
+- No labels like "HEADLINE:" or "DESCRIPTION:" (except "STANDINGS:" for the standings section)
 - Exactly 3 newlines between headline and description
 - Maximum 8 sentences and 100 words in the description
+- Exactly 3 newlines between description and standings section
 
 Example format:
 Manchester United advances to FA Cup final with 2-1 win
@@ -363,7 +533,13 @@ United's dramatic late goal secured their spot in the final against Arsenal. The
 
 In the Premier League, Liverpool defeated Chelsea 3-0 to move into second place. Mohamed Salah scored twice in the first half.
 
-Barcelona drew 1-1 with Atletico Madrid in La Liga. The result keeps Barcelona at the top of the table with a 5-point lead."""
+Barcelona drew 1-1 with Atletico Madrid in La Liga. The result keeps Barcelona at the top of the table with a 5-point lead.
+
+
+STANDINGS:
+English Premier League: Arsenal leads with 45 points, followed by Manchester City (43) and Liverpool (41). Chelsea sits in 4th with 38 points. The race for Champions League qualification remains tight with just 3 points separating 3rd through 6th place.
+
+La Liga: Barcelona sits atop the table with 48 points, 5 clear of Real Madrid in second. Atletico Madrid holds 3rd with 38 points."""
 
     print(f"Sending match data to GPT-4o for SMS summarization...")
     
@@ -373,7 +549,7 @@ Barcelona drew 1-1 with Atletico Madrid in La Liga. The result keeps Barcelona a
             "role": "user",
             "content": prompt
         }],
-        max_tokens=1000,
+        max_tokens=1500,
         temperature=0.7
     )
     
@@ -529,6 +705,9 @@ def handler(event, context):
         print(f"Processing soccer matches for: {yesterday_readable} and {today_readable}")
         print("=" * 60)
         
+        # Load standings URLs mapping
+        standings_mapping = load_standings_urls()
+        
         # 2. Build URLs for both dates and fetch HTML via Browser Lambda in parallel
         yesterday_url = f"https://www.espn.com/soccer/schedule/_/date/{yesterday}"
         today_url = f"https://www.espn.com/soccer/schedule/_/date/{today}"
@@ -573,13 +752,15 @@ def handler(event, context):
                 extract_matches_with_gpt,
                 client,
                 truncated_html_yesterday,
-                yesterday_readable
+                yesterday_readable,
+                standings_mapping
             )
             future_today = executor.submit(
                 extract_matches_with_gpt,
                 client,
                 truncated_html_today,
-                today_readable
+                today_readable,
+                standings_mapping
             )
             
             # Get results from both futures
@@ -590,6 +771,20 @@ def handler(event, context):
         matches_yesterday = result_yesterday.get('matches', [])
         matches_today = result_today.get('matches', [])
         all_matches = matches_yesterday + matches_today
+        
+        # Combine standings URLs from both days (remove duplicates)
+        standings_urls_yesterday = result_yesterday.get('standings_urls', [])
+        standings_urls_today = result_today.get('standings_urls', [])
+        all_standings_urls = standings_urls_yesterday + standings_urls_today
+        
+        # Remove duplicate standings URLs based on competition name
+        unique_standings = {}
+        for standing in all_standings_urls:
+            comp = standing.get('competition', '')
+            if comp and comp not in unique_standings:
+                unique_standings[comp] = standing
+        
+        unique_standings_urls = list(unique_standings.values())
         
         result = {
             'matches': all_matches
@@ -622,13 +817,22 @@ def handler(event, context):
         else:
             print("\nNo matches found, skipping report fetching")
         
+        # 5.5. Fetch standings HTML for relevant competitions
+        print(f"\nFound {len(unique_standings_urls)} unique competitions with matches")
+        if unique_standings_urls:
+            enriched_standings = fetch_standings_in_parallel(unique_standings_urls)
+            result['standings'] = enriched_standings
+        else:
+            print("\nNo standings URLs to fetch")
+            result['standings'] = []
+        
         # 6. Generate SMS notification summary
         print("\n" + "=" * 60)
         print("GENERATING SMS NOTIFICATION...")
         print("=" * 60)
         
         date_range_str = f"{yesterday_readable} and {today_readable}"
-        sms_notification = summarize_for_sms(client, result.get('matches', []), date_range_str)
+        sms_notification = summarize_for_sms(client, result.get('matches', []), date_range_str, result.get('standings', []))
         result['sms_notification'] = sms_notification
         
         print("\n" + "=" * 60)
