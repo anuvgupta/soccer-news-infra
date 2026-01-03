@@ -196,13 +196,14 @@ IMPORTANT: Only extract matches from these relevant competitions:
 Ignore all other competitions/leagues not listed above.
 """
     
-    prompt = f"""Extract all completed soccer matches from this ESPN schedule HTML for {date_range_str}.
+    prompt = f"""Extract all soccer matches (both completed and upcoming) from this ESPN schedule HTML for {date_range_str}.
 
-The HTML contains schedule data from two consecutive days. Each section has a league/competition name in the Table__Title div. For each completed match, extract:
+The HTML contains schedule data from two consecutive days. Each section has a league/competition name in the Table__Title div. For each match, extract:
 - league: The league/competition name from the Table__Title (e.g., "English Premier League", "Africa Cup of Nations")
 - team1: The first team name shown
 - team2: The second team name shown
 - score: The final score in format "X-Y" (e.g., "1-3") where X is team1's score and Y is team2's score
+  * If NO score is available (match hasn't started yet), use "upcoming" as the score value
 - match_url: The ESPN match page URL (format: https://www.espn.com/soccer/match/_/gameId/######)
 
 {competitions_instruction}
@@ -218,6 +219,13 @@ Return JSON with this exact structure:
       "team2": "Newcastle United",
       "score": "1-3",
       "match_url": "https://www.espn.com/soccer/match/_/gameId/740778"
+    }},
+    {{
+      "league": "La Liga",
+      "team1": "Real Madrid",
+      "team2": "Barcelona",
+      "score": "upcoming",
+      "match_url": "https://www.espn.com/soccer/match/_/gameId/740779"
     }}
   ]
 }}
@@ -245,7 +253,11 @@ HTML content:
     matches = result.get('matches', [])
     for match_data in matches:
         score = match_data.get('score', '')
-        if '-' in score:
+        
+        # Handle upcoming matches (no score available yet)
+        if score.lower() == 'upcoming':
+            match_data['winner'] = 'Upcoming'
+        elif '-' in score:
             try:
                 parts = score.split('-')
                 team1_score = int(parts[0].strip())
@@ -263,7 +275,9 @@ HTML content:
         else:
             match_data['winner'] = 'Unknown'
     
-    print(f"GPT-4o extracted {len(matches)} matches, winners calculated in Python")
+    completed_count = sum(1 for m in matches if m.get('winner') not in ['Upcoming', 'Unknown'])
+    upcoming_count = sum(1 for m in matches if m.get('winner') == 'Upcoming')
+    print(f"GPT-4o extracted {len(matches)} matches ({completed_count} completed, {upcoming_count} upcoming), winners calculated in Python")
     
     return result
 
@@ -304,10 +318,12 @@ def summarize_for_sms(client, matches_data, date_str):
         
         matches_summary.append(match_info)
     
-    prompt = f"""You are creating an SMS notification for soccer match results from {date_str}.
+    prompt = f"""You are creating an SMS notification for soccer match results and upcoming matches from {date_str}.
 
 MATCH DATA:
 {json.dumps(matches_summary, indent=2)}
+
+Note: Matches with score="upcoming" and winner="Upcoming" have not been played yet.
 
 Create an SMS notification with this EXACT format:
 
@@ -322,7 +338,8 @@ Create an SMS notification with this EXACT format:
 3. DESCRIPTION (7-10 sentences):
    - Plain, simple, concise language
    - First, expand on the headline event with more details
-   - Then cover other significant matches from the day
+   - Then cover other significant completed matches from the day
+   - If there are notable upcoming matches (especially involving popular teams or important competitions), mention them at the end
    - Do NOT omit any key events or results
    - Separate different topics/leagues with one blank line
    - Focus on outcomes and significance, not flowery language
@@ -554,12 +571,28 @@ def handler(event, context):
         date_range_str = f"{yesterday_readable} and {today_readable}"
         result = extract_matches_with_gpt(client, truncated_html, date_range_str)
         
-        # 5. Fetch match reports for each match
+        # 5. Fetch match reports for completed matches only
         matches = result.get('matches', [])
         if matches:
-            print(f"\nFound {len(matches)} matches, fetching reports...")
-            enriched_matches = fetch_reports_in_batches(matches, batch_size=10)
-            result['matches'] = enriched_matches
+            # Separate completed and upcoming matches
+            completed_matches = [m for m in matches if m.get('winner') not in ['Upcoming', 'Unknown']]
+            upcoming_matches = [m for m in matches if m.get('winner') == 'Upcoming']
+            
+            print(f"\nFound {len(matches)} total matches ({len(completed_matches)} completed, {len(upcoming_matches)} upcoming)")
+            
+            # Only fetch reports for completed matches
+            if completed_matches:
+                print(f"Fetching reports for {len(completed_matches)} completed matches...")
+                enriched_completed = fetch_reports_in_batches(completed_matches, batch_size=10)
+            else:
+                enriched_completed = []
+            
+            # Add empty reports for upcoming matches
+            for match in upcoming_matches:
+                match['report'] = ''
+            
+            # Combine all matches back together
+            result['matches'] = enriched_completed + upcoming_matches
         else:
             print("\nNo matches found, skipping report fetching")
         
